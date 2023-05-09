@@ -32,6 +32,8 @@ func usage() error {
 	fmt.Println("\t\tprune                                  (prune open telemetry calls")
 	fmt.Println("\t\tdumpcfg                                (dumps control flow graph)")
 	fmt.Println("\t\trootfunctions                          (dumps root functions)")
+	fmt.Println("\t\tgeneratecfg                            (gencfg)")
+
 	return nil
 }
 
@@ -156,6 +158,10 @@ func executeCommand(command string, projectPath string, packagePattern string) e
 		if err != nil {
 			return err
 		}
+		return nil
+	case "--generatecfg":
+		backwardCallGraph := makeCallGraph(projectPath, packagePattern)
+		alib.GenerateForwardCfg(backwardCallGraph, "cfg")
 		return nil
 	default:
 		return errors.New("unknown command")

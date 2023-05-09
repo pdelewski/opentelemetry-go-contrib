@@ -19,6 +19,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"os"
 	"strings"
 
 	"golang.org/x/tools/go/packages"
@@ -389,4 +390,55 @@ func InferRootFunctionsFromGraph(callgraph map[FuncDescriptor][]FuncDescriptor) 
 		}
 	}
 	return rootFunctions
+}
+
+func GenerateForwardCfg(backwardCallgraph map[FuncDescriptor][]FuncDescriptor, path string) {
+	out, err := os.Create(path)
+	defer out.Close()
+	if err != nil {
+		return
+	}
+	cfg := ReverseCfg(backwardCallgraph)
+	for k, _ := range cfg {
+		visited := make(map[FuncDescriptor]bool)
+		depth := 1
+		GenerateCfgHelper(cfg, k, out, visited, depth)
+		out.WriteString("\n")
+	}
+}
+
+func GenerateCfgHelper(
+	callGraph map[FuncDescriptor][]FuncDescriptor,
+	current FuncDescriptor,
+	out *os.File,
+	visited map[FuncDescriptor]bool, depth int) {
+	for i := 0; i < depth-1; i++ {
+		out.WriteString("\t")
+	}
+	out.WriteString(current.TypeHash())
+	out.WriteString("\n")
+
+	value, ok := callGraph[current]
+	if ok {
+		for _, child := range value {
+			exists := visited[child]
+			if exists {
+				continue
+			}
+			visited[child] = true
+			depth = depth + 1
+			GenerateCfgHelper(callGraph, child, out, visited, depth)
+			depth = depth - 1
+		}
+	}
+}
+
+func ReverseCfg(backwardCallgraph map[FuncDescriptor][]FuncDescriptor) map[FuncDescriptor][]FuncDescriptor {
+	cfg := make(map[FuncDescriptor][]FuncDescriptor)
+	for k, children := range backwardCallgraph {
+		for _, childFun := range children {
+			cfg[childFun] = append(cfg[childFun], k)
+		}
+	}
+	return cfg
 }
