@@ -36,7 +36,7 @@ type FuncDescriptor struct {
 // Function TypeHash. Each function is itentified by its
 // id and type.
 func (fd FuncDescriptor) TypeHash() string {
-	return fd.Id + fd.DeclType
+	return fd.Id + ":" + fd.DeclType
 }
 
 // LoadMode. Tells about needed information during analysis.
@@ -403,7 +403,7 @@ func GenerateForwardCfg(backwardCallgraph map[FuncDescriptor][]FuncDescriptor, p
 		visited := make(map[FuncDescriptor]bool)
 		depth := 1
 		GenerateCfgHelper(cfg, k, out, visited, depth)
-		out.WriteString("\n")
+		out.WriteString("<br>")
 	}
 }
 
@@ -413,9 +413,9 @@ func GenerateCfgHelper(
 	out *os.File,
 	visited map[FuncDescriptor]bool, depth int) {
 	for i := 0; i < depth-1; i++ {
-		out.WriteString("\t")
+		out.WriteString("&nbsp;&nbsp;&nbsp;&nbsp;")
 	}
-	out.WriteString(current.TypeHash())
+	out.WriteString(current.TypeHash() + "<br>")
 	out.WriteString("\n")
 
 	value, ok := callGraph[current]

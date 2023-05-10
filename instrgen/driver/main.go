@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"go/ast"
 	"log"
+	"net/http"
 	"os"
 
 	alib "go.opentelemetry.io/contrib/instrgen/lib"
@@ -33,7 +34,7 @@ func usage() error {
 	fmt.Println("\t\tdumpcfg                                (dumps control flow graph)")
 	fmt.Println("\t\trootfunctions                          (dumps root functions)")
 	fmt.Println("\t\tgeneratecfg                            (gencfg)")
-
+	fmt.Println("\t\tserver                                 (ui)")
 	return nil
 }
 
@@ -163,6 +164,9 @@ func executeCommand(command string, projectPath string, packagePattern string) e
 		backwardCallGraph := makeCallGraph(projectPath, packagePattern)
 		alib.GenerateForwardCfg(backwardCallGraph, "cfg")
 		return nil
+	case "--server":
+		server(projectPath, packagePattern)
+		return nil
 	default:
 		return errors.New("unknown command")
 	}
@@ -174,6 +178,17 @@ func checkArgs(args []string) error {
 		return errors.New("wrong arguments")
 	}
 	return nil
+}
+
+func server(projectPath string, packagePattern string) {
+	backwardCallGraph := makeCallGraph(projectPath, packagePattern)
+	alib.GenerateForwardCfg(backwardCallGraph, "./static/index.html")
+
+	fs := http.FileServer(http.Dir("./static"))
+	http.Handle("/", fs)
+
+	http.ListenAndServe(":8090", nil)
+
 }
 
 func main() {
