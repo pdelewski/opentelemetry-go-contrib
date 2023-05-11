@@ -398,13 +398,41 @@ func GenerateForwardCfg(backwardCallgraph map[FuncDescriptor][]FuncDescriptor, p
 	if err != nil {
 		return
 	}
+	rootFunctions := InferRootFunctionsFromGraph(backwardCallgraph)
+	head, _ := os.ReadFile("./static/head.html")
+
 	cfg := ReverseCfg(backwardCallgraph)
+	out.WriteString("<html>\n")
+	out.WriteString("<link rel=\"stylesheet\" href=\"./default.min.css\">\n")
+	out.Write(head)
+	out.WriteString("\n<body>")
+	out.WriteString("\n<div class=\"left\">")
+	out.WriteString("\n<h1>CallGraph</h1>")
+	out.WriteString("\n<table>")
+
 	for k, _ := range cfg {
-		visited := make(map[FuncDescriptor]bool)
-		depth := 1
-		GenerateCfgHelper(cfg, k, out, visited, depth)
-		out.WriteString("<br>")
+		for _, v := range rootFunctions {
+			if v.TypeHash() != k.TypeHash() {
+				continue
+			}
+			visited := make(map[FuncDescriptor]bool)
+			depth := 1
+			GenerateCfgHelper(cfg, k, out, visited, depth)
+		}
 	}
+	out.WriteString("\n</table>")
+	out.WriteString("\n</div>")
+
+	out.WriteString("\n<div class=\"right\">")
+	out.WriteString("\n<h1>Toolbox</h1>")
+	out.WriteString("\n&nbsp;&nbsp;<button id=\"inject\" type=\"button\" onclick=\"button_clicked(this.id)\">Inject</button><br><br>")
+	out.WriteString("\n&nbsp;&nbsp;<button id=\"prune\" type=\"button\" onclick=\"button_clicked(this.id)\">Prune</button><br><br>")
+	out.WriteString("\n&nbsp;&nbsp;<button id=\"build\" type=\"button\" onclick=\"button_clicked(this.id)\">Build</button><br><br>")
+	out.WriteString("\n&nbsp;&nbsp;<button id=\"run\" type=\"button\" onclick=\"button_clicked(this.id)\">Run</button><br><br>")
+	out.WriteString("\n</div>")
+
+	out.WriteString("\n</body>")
+	out.WriteString("\n</html>")
 }
 
 func GenerateCfgHelper(
@@ -412,11 +440,16 @@ func GenerateCfgHelper(
 	current FuncDescriptor,
 	out *os.File,
 	visited map[FuncDescriptor]bool, depth int) {
+
+	out.WriteString("\n<tr>")
+	out.WriteString("\n<td>")
 	for i := 0; i < depth-1; i++ {
-		out.WriteString("&nbsp;&nbsp;&nbsp;&nbsp;")
+		out.WriteString("&nbsp;&nbsp;")
 	}
-	out.WriteString(current.TypeHash() + "<br>")
-	out.WriteString("\n")
+	out.WriteString("\n    <input type=\"checkbox\" id=\"" + current.TypeHash() + "\"" + " onchange=\"clicked()\" />")
+	out.WriteString(current.TypeHash())
+	out.WriteString("\n</td>")
+	out.WriteString("\n</tr>")
 
 	value, ok := callGraph[current]
 	if ok {
