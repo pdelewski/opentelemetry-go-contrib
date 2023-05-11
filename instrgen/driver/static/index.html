@@ -1,0 +1,147 @@
+<html>
+<link rel="stylesheet" href="./default.min.css">
+<script type="text/javascript">
+function httpPost(theUrl, streamedGraph)
+{
+    let xhr = new XMLHttpRequest();
+    xhr.open("POST", theUrl, true);
+
+    xhr.setRequestHeader('Content-length', '0');
+    //var body = streamedGraph.join('\n');
+    xhr.send('');
+}
+function clicked() {
+}
+
+function button_clicked(id) {
+    if (id === 'inject') {
+        httpPost('http://localhost:8090/inject', '');
+    }
+    if (id === 'prune') {
+        httpPost('http://localhost:8090/prune', '');
+    }
+    if (id === 'build') {
+        httpPost('http://localhost:8090/build', '');
+    }
+    if (id === 'run') {
+        httpPost('http://localhost:8090/run', '');
+    }
+}
+
+</script>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+   body {
+      font-family: Courier;
+   }
+   h1{
+      padding:20px;
+   }
+   .left,.right {
+      height: 100%;
+      position: fixed;
+      z-index: 1;
+      top: 0;
+      overflow-x: hidden;
+      padding-top: 5px;
+      overflow-x: auto;
+      white-space: nowrap;
+   }
+   .left {
+      left: 0;
+      width: 70%;
+      background-color: rgb(221, 226, 235);
+      color: black;
+   }
+   .right {
+      right: 0;
+      width: 30%;
+      background-color: rgb(70, 69, 76);
+      color: white;
+   }
+   .centered {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+   }
+   .centered img {
+      width: 150px;
+      border-radius: 50%;
+   }
+
+</style>
+</head>
+
+<body>
+<div class="left">
+<h1>CallGraph</h1>
+<table>
+<tr>
+<td>
+    <input type="checkbox" id="go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.main:func()" onchange="clicked()" />go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.main:func()
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;
+    <input type="checkbox" id="go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.FibonacciHelper:func(n uint) (uint64, error)" onchange="clicked()" />go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.FibonacciHelper:func(n uint) (uint64, error)
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;&nbsp;&nbsp;
+    <input type="checkbox" id="go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.foo:func()" onchange="clicked()" />go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.foo:func()
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;&nbsp;&nbsp;
+    <input type="checkbox" id="go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.Fibonacci:func(n uint) (uint64, error)" onchange="clicked()" />go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.Fibonacci:func(n uint) (uint64, error)
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;
+    <input type="checkbox" id="go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.goroutines:func()" onchange="clicked()" />go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.goroutines:func()
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;
+    <input type="checkbox" id="go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.pack:func()" onchange="clicked()" />go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.pack:func()
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;
+    <input type="checkbox" id="go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.methods:func()" onchange="clicked()" />go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.methods:func()
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;&nbsp;&nbsp;
+    <input type="checkbox" id="go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.element.get:func(a int)" onchange="clicked()" />go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.element.get:func(a int)
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;&nbsp;&nbsp;
+    <input type="checkbox" id="go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.i.anotherfoo:func(p int) int" onchange="clicked()" />go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.i.anotherfoo:func(p int) int
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;&nbsp;&nbsp;
+    <input type="checkbox" id="go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.driver.process:func(a int)" onchange="clicked()" />go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.driver.process:func(a int)
+</td>
+</tr>
+<tr>
+<td>&nbsp;&nbsp;
+    <input type="checkbox" id="go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.recur:func(n int)" onchange="clicked()" />go.opentelemetry.io/contrib/instrgen/driver/testdata/basic.recur:func(n int)
+</td>
+</tr>
+</table>
+</div>
+<div class="right">
+<h1>Toolbox</h1>
+&nbsp;&nbsp;<button id="inject" type="button" onclick="button_clicked(this.id)">Inject</button><br><br>
+&nbsp;&nbsp;<button id="prune" type="button" onclick="button_clicked(this.id)">Prune</button><br><br>
+&nbsp;&nbsp;<button id="build" type="button" onclick="button_clicked(this.id)">Build</button><br><br>
+&nbsp;&nbsp;<button id="run" type="button" onclick="button_clicked(this.id)">Run</button><br><br>
+</div>
+</body>
+</html>
