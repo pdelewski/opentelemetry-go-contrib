@@ -21,6 +21,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 
 	alib "go.opentelemetry.io/contrib/instrgen/lib"
 )
@@ -198,6 +199,14 @@ func req_prune(projectPath string, packagePattern string, w http.ResponseWriter,
 
 func req_build(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
 	fmt.Println("build")
+	cmd := exec.Command("go", "build", ".")
+
+	cmd.Dir = projectPath
+	err := cmd.Run()
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func req_run(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
