@@ -1,0 +1,74 @@
+<script type="text/javascript">
+function httpPost(theUrl, streamedGraph)
+{
+    let xhr = new XMLHttpRequest();
+    xhr.open("POST", theUrl, true);
+
+    xhr.setRequestHeader('Content-length', '0');
+    //var body = streamedGraph.join('\n');
+    xhr.send('');
+}
+function clicked() {
+}
+
+function button_clicked(id) {
+    if (id === 'inject') {
+        httpPost('http://localhost:8090/inject', '');
+    }
+    if (id === 'prune') {
+        httpPost('http://localhost:8090/prune', '');
+    }
+    if (id === 'build') {
+        httpPost('http://localhost:8090/build', '');
+    }
+    if (id === 'run') {
+        httpPost('http://localhost:8090/run', '');
+    }
+}
+
+</script>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+   body {
+      font-family: Courier;
+   }
+   h1{
+      padding:20px;
+   }
+   .left,.right {
+      height: 100%;
+      position: fixed;
+      z-index: 1;
+      top: 0;
+      overflow-x: hidden;
+      padding-top: 5px;
+      overflow-x: auto;
+      white-space: nowrap;
+   }
+   .left {
+      left: 0;
+      width: 70%;
+      background-color: rgb(221, 226, 235);
+      color: black;
+   }
+   .right {
+      right: 0;
+      width: 30%;
+      background-color: rgb(70, 69, 76);
+      color: white;
+   }
+   .centered {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+   }
+   .centered img {
+      width: 150px;
+      border-radius: 50%;
+   }
+
+</style>
+</head>
