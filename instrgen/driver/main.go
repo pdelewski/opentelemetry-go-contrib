@@ -180,10 +180,46 @@ func checkArgs(args []string) error {
 	return nil
 }
 
+func req_inject(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
+	fmt.Println("inject")
+	err := executeCommand("--inject", projectPath, packagePattern)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func req_prune(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
+	fmt.Println("prune")
+	err := executeCommand("--prune", projectPath, packagePattern)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func req_build(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
+	fmt.Println("build")
+}
+
+func req_run(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
+	fmt.Println("run")
+}
+
 func server(projectPath string, packagePattern string) {
 	backwardCallGraph := makeCallGraph(projectPath, packagePattern)
 	alib.GenerateForwardCfg(backwardCallGraph, "./static/index.html")
 
+	http.HandleFunc("/inject", func(w http.ResponseWriter, r *http.Request) {
+		req_inject(projectPath, packagePattern, w, r)
+	})
+	http.HandleFunc("/prune", func(w http.ResponseWriter, r *http.Request) {
+		req_prune(projectPath, packagePattern, w, r)
+	})
+	http.HandleFunc("/build", func(w http.ResponseWriter, r *http.Request) {
+		req_build(projectPath, packagePattern, w, r)
+	})
+	http.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
+		req_run(projectPath, packagePattern, w, r)
+	})
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/", fs)
 
