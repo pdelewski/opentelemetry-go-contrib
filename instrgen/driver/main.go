@@ -182,7 +182,7 @@ func checkArgs(args []string) error {
 	return nil
 }
 
-func req_inject(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
+func reqInject(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
 	fmt.Println("inject")
 	var bodyBytes []byte
 	var err error
@@ -202,7 +202,7 @@ func req_inject(projectPath string, packagePattern string, w http.ResponseWriter
 	}
 }
 
-func req_prune(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
+func reqPrune(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
 	fmt.Println("prune")
 	err := executeCommand("--prune", projectPath, packagePattern)
 	if err != nil {
@@ -210,7 +210,7 @@ func req_prune(projectPath string, packagePattern string, w http.ResponseWriter,
 	}
 }
 
-func req_build(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
+func reqBuild(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
 	fmt.Println("build")
 	cmd := exec.Command("go", "build", ".")
 
@@ -222,7 +222,7 @@ func req_build(projectPath string, packagePattern string, w http.ResponseWriter,
 	}
 }
 
-func req_run(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
+func reqRun(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
 	fmt.Println("run")
 }
 
@@ -231,16 +231,16 @@ func server(projectPath string, packagePattern string) {
 	alib.GenerateForwardCfg(backwardCallGraph, "./static/index.html")
 
 	http.HandleFunc("/inject", func(w http.ResponseWriter, r *http.Request) {
-		req_inject(projectPath, packagePattern, w, r)
+		reqInject(projectPath, packagePattern, w, r)
 	})
 	http.HandleFunc("/prune", func(w http.ResponseWriter, r *http.Request) {
-		req_prune(projectPath, packagePattern, w, r)
+		reqPrune(projectPath, packagePattern, w, r)
 	})
 	http.HandleFunc("/build", func(w http.ResponseWriter, r *http.Request) {
-		req_build(projectPath, packagePattern, w, r)
+		reqBuild(projectPath, packagePattern, w, r)
 	})
 	http.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
-		req_run(projectPath, packagePattern, w, r)
+		reqRun(projectPath, packagePattern, w, r)
 	})
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/", fs)
