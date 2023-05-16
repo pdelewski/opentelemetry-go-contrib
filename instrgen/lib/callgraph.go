@@ -408,6 +408,8 @@ func GenerateForwardCfg(backwardCallgraph map[FuncDescriptor][]FuncDescriptor, p
 	out.WriteString("\n<body>")
 	out.WriteString("\n<div class=\"left\">")
 	out.WriteString("\n<h1>CallGraph</h1>")
+	out.WriteString("\n&nbsp;<label for=\"entrypointlabel\">EntryPoint:</label>")
+	out.WriteString("\n<input type=\"text\" id=\"entrypoint\" name=\"EntryPoint\" required\n size=\"100\">")
 	out.WriteString("\n<table>")
 
 	for k, _ := range cfg {
@@ -425,10 +427,10 @@ func GenerateForwardCfg(backwardCallgraph map[FuncDescriptor][]FuncDescriptor, p
 
 	out.WriteString("\n<div class=\"right\">")
 	out.WriteString("\n<h1>Toolbox</h1>")
-	out.WriteString("\n&nbsp;&nbsp;<button id=\"inject\" type=\"button\" onclick=\"button_clicked(this.id)\">Inject</button><br><br>")
-	out.WriteString("\n&nbsp;&nbsp;<button id=\"prune\" type=\"button\" onclick=\"button_clicked(this.id)\">Prune</button><br><br>")
-	out.WriteString("\n&nbsp;&nbsp;<button id=\"build\" type=\"button\" onclick=\"button_clicked(this.id)\">Build</button><br><br>")
-	out.WriteString("\n&nbsp;&nbsp;<button id=\"run\" type=\"button\" onclick=\"button_clicked(this.id)\">Run</button><br><br>")
+	out.WriteString("\n&nbsp;&nbsp;<button id=\"inject\" type=\"button\" onclick=\"button_clicked(this.id, entrypoint.value)\">Inject</button><br><br>")
+	out.WriteString("\n&nbsp;&nbsp;<button id=\"prune\" type=\"button\" onclick=\"button_clicked(this.id, entrypoint.value)\">Prune</button><br><br>")
+	out.WriteString("\n&nbsp;&nbsp;<button id=\"build\" type=\"button\" onclick=\"button_clicked(this.id, entrypoint.value)\">Build</button><br><br>")
+	out.WriteString("\n&nbsp;&nbsp;<button id=\"run\" type=\"button\" onclick=\"button_clicked(this.id, entrypoint.value)\">Run</button><br><br>")
 	out.WriteString("\n</div>")
 
 	out.WriteString("\n</body>")

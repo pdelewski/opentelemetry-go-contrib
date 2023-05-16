@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -183,7 +184,19 @@ func checkArgs(args []string) error {
 
 func req_inject(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
 	fmt.Println("inject")
-	err := executeCommand("--inject", projectPath, packagePattern)
+	var bodyBytes []byte
+	var err error
+
+	if r.Body != nil {
+		bodyBytes, err = io.ReadAll(r.Body)
+		if err != nil {
+			fmt.Printf("Body reading error: %v", err)
+			return
+		}
+		defer r.Body.Close()
+	}
+	fmt.Println(string(bodyBytes))
+	err = executeCommand("--inject", projectPath, packagePattern)
 	if err != nil {
 		log.Fatal(err)
 	}

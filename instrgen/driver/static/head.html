@@ -1,28 +1,28 @@
 <script type="text/javascript">
-function httpPost(theUrl, streamedGraph)
+function httpPost(theUrl, entrypoint)
 {
     let xhr = new XMLHttpRequest();
     xhr.open("POST", theUrl, true);
 
     xhr.setRequestHeader('Content-length', '0');
-    //var body = streamedGraph.join('\n');
-    xhr.send('');
+
+    xhr.send(entrypoint);
 }
 function clicked() {
 }
 
-function button_clicked(id) {
+function button_clicked(id, entrypoint) {
     if (id === 'inject') {
-        httpPost('http://localhost:8090/inject', '');
+        httpPost('http://localhost:8090/inject', entrypoint);
     }
     if (id === 'prune') {
-        httpPost('http://localhost:8090/prune', '');
+        httpPost('http://localhost:8090/prune', entrypoint);
     }
     if (id === 'build') {
-        httpPost('http://localhost:8090/build', '');
+        httpPost('http://localhost:8090/build', entrypoint);
     }
     if (id === 'run') {
-        httpPost('http://localhost:8090/run', '');
+        httpPost('http://localhost:8090/run', entrypoint);
     }
 }
 
