@@ -36,38 +36,32 @@ function button_clicked(id, entrypoint) {
    h1{
       padding:20px;
    }
+   .table {
+      width: 10000px;
+      margin-bottom: 0;
+      max-width: none;
+   }
    .left,.right {
       height: 100%;
       position: fixed;
       z-index: 1;
       top: 0;
-      overflow-x: hidden;
       padding-top: 5px;
-      overflow-x: auto;
-      white-space: nowrap;
+      overflow-y: auto;
    }
    .left {
       left: 0;
       width: 70%;
+      overflow-x: auto;
       background-color: rgb(221, 226, 235);
       color: black;
+      white-space: nowrap;
    }
    .right {
       right: 0;
       width: 30%;
       background-color: rgb(70, 69, 76);
       color: white;
-   }
-   .centered {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      text-align: center;
-   }
-   .centered img {
-      width: 150px;
-      border-radius: 50%;
    }
 
 </style>
