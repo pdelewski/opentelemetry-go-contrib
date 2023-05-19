@@ -15,6 +15,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -27,6 +28,11 @@ import (
 
 	alib "go.opentelemetry.io/contrib/instrgen/lib"
 )
+
+type UiRequest struct {
+	Entrypoint string
+	Funcset    []string
+}
 
 func usage() error {
 	fmt.Println("\nusage driver --command [path to go project] [package pattern]")
@@ -196,15 +202,16 @@ func reqInject(projectPath string, packagePattern string, w http.ResponseWriter,
 		}
 		defer r.Body.Close()
 	}
-	entryPointFun := string(bodyBytes)
-	entryPointFunSignature := strings.Split(entryPointFun, ":")
+	var uiReq UiRequest
+	json.Unmarshal([]byte(bodyBytes), &uiReq)
+	fmt.Println("JsonBody : ", uiReq)
+	entryPointFunSignature := strings.Split(uiReq.Entrypoint, ":")
 	if len(entryPointFunSignature) < 1 {
 		log.Fatal("lack of entry point function")
 		return
 	}
 	rootFuncs := make([]alib.FuncDescriptor, 1)
 	rootFuncs[0] = alib.FuncDescriptor{entryPointFunSignature[0], entryPointFunSignature[1], false}
-	fmt.Println(rootFuncs[0])
 
 	_, err = Prune(projectPath, packagePattern, false)
 	if err != nil {

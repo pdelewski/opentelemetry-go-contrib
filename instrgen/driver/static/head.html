@@ -1,28 +1,40 @@
 <script type="text/javascript">
-function httpPost(theUrl, entrypoint)
+function httpPost(theUrl, entrypoint, funcSet)
 {
+    if (funcSet.includes(entrypoint) === false) {
+        alert("Unknown entry point, entry point needs to be selected element of callgraph")
+        return
+    }
+    let jsonRepr = {}
+    jsonRepr["entrypoint"] = entrypoint
+    jsonRepr["funcset"] = funcSet
     let xhr = new XMLHttpRequest();
     xhr.open("POST", theUrl, true);
 
     xhr.setRequestHeader('Content-length', '0');
 
-    xhr.send(entrypoint);
+    xhr.send(JSON.stringify(jsonRepr));
 }
 function clicked() {
 }
 
 function button_clicked(id, entrypoint) {
+    let funcSet = []
+    let checkboxes = document.querySelectorAll('input[type=checkbox]:checked')
+    for (let i = 0; i < checkboxes.length; i++) {
+        funcSet.push(checkboxes[i].id)
+    }
     if (id === 'inject') {
-        httpPost('http://localhost:8090/inject', entrypoint);
+        httpPost('http://localhost:8090/inject', entrypoint, funcSet);
     }
     if (id === 'prune') {
-        httpPost('http://localhost:8090/prune', entrypoint);
+        httpPost('http://localhost:8090/prune', entrypoint, funcSet);
     }
     if (id === 'build') {
-        httpPost('http://localhost:8090/build', entrypoint);
+        httpPost('http://localhost:8090/build', entrypoint, funcSet);
     }
     if (id === 'run') {
-        httpPost('http://localhost:8090/run', entrypoint);
+        httpPost('http://localhost:8090/run', entrypoint, funcSet);
     }
 }
 

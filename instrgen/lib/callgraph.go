@@ -409,7 +409,7 @@ func GenerateForwardCfg(backwardCallgraph map[FuncDescriptor][]FuncDescriptor, p
 	out.WriteString("\n<div class=\"left\">")
 	out.WriteString("\n<h1>CallGraph</h1>")
 	out.WriteString("\n&nbsp;<label for=\"entrypointlabel\">EntryPoint:</label>")
-	out.WriteString("\n<input type=\"text\" id=\"entrypoint\" name=\"EntryPoint\" required\n size=\"100\">")
+	out.WriteString("\n<input type=\"text\" id=\"entrypoint\" name=\"EntryPoint\" required size=\"100\">")
 	out.WriteString("\n<table class=\"table table-striped\">")
 
 	for k, _ := range cfg {
