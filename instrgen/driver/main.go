@@ -60,14 +60,19 @@ func makeAnalysis(projectPath string, packagePattern string, debug bool) *alib.P
 		fmt.Print(" ", v)
 	}
 	fmt.Println("")
+	selectedFunctions := make(map[string]bool)
+	for k, _ := range funcDecls {
+		selectedFunctions[k.TypeHash()] = true
+	}
 	analysis := &alib.PackageAnalysis{
-		ProjectPath:    projectPath,
-		PackagePattern: packagePattern,
-		RootFunctions:  rootFunctions,
-		FuncDecls:      funcDecls,
-		Callgraph:      backwardCallGraph,
-		Interfaces:     interfaces,
-		Debug:          debug}
+		ProjectPath:       projectPath,
+		PackagePattern:    packagePattern,
+		RootFunctions:     rootFunctions,
+		FuncDecls:         funcDecls,
+		Callgraph:         backwardCallGraph,
+		Interfaces:        interfaces,
+		SelectedFunctions: selectedFunctions,
+		Debug:             debug}
 	return analysis
 }
 
