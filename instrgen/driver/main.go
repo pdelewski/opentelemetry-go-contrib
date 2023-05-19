@@ -204,6 +204,10 @@ func reqInject(projectPath string, packagePattern string, w http.ResponseWriter,
 	}
 	var uiReq UiRequest
 	json.Unmarshal([]byte(bodyBytes), &uiReq)
+	selectedFunctions := make(map[string]bool)
+	for _, selectedFun := range uiReq.Funcset {
+		selectedFunctions[selectedFun] = true
+	}
 	fmt.Println("JsonBody : ", uiReq)
 	entryPointFunSignature := strings.Split(uiReq.Entrypoint, ":")
 	if len(entryPointFunSignature) < 1 {
@@ -229,13 +233,14 @@ func reqInject(projectPath string, packagePattern string, w http.ResponseWriter,
 	}
 	fmt.Println("")
 	analysis := &alib.PackageAnalysis{
-		ProjectPath:    projectPath,
-		PackagePattern: packagePattern,
-		RootFunctions:  rootFunctions,
-		FuncDecls:      funcDecls,
-		Callgraph:      backwardCallGraph,
-		Interfaces:     interfaces,
-		Debug:          false}
+		ProjectPath:       projectPath,
+		PackagePattern:    packagePattern,
+		RootFunctions:     rootFunctions,
+		FuncDecls:         funcDecls,
+		Callgraph:         backwardCallGraph,
+		Interfaces:        interfaces,
+		SelectedFunctions: selectedFunctions,
+		Debug:             false}
 	err = ExecutePasses(analysis)
 	if err != nil {
 		log.Fatal(err)

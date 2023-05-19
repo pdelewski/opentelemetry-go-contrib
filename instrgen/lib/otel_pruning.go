@@ -55,12 +55,14 @@ func inspectFuncContent(fType *ast.FuncType, fBody *ast.BlockStmt) {
 				if strings.Contains(ident.Name, "__atel_") {
 					fBody.List = removeStmt(fBody.List, index)
 					index--
+					continue
 				}
 			}
 			if ident, ok := bodyStmt.Rhs[0].(*ast.Ident); ok {
 				if strings.Contains(ident.Name, "__atel_") {
 					fBody.List = removeStmt(fBody.List, index)
 					index--
+					continue
 				}
 			}
 		case *ast.ExprStmt:

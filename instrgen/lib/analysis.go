@@ -30,13 +30,14 @@ import (
 // root functions - entry points, function declarations,
 // and so on.
 type PackageAnalysis struct {
-	ProjectPath    string
-	PackagePattern string
-	RootFunctions  []FuncDescriptor
-	FuncDecls      map[FuncDescriptor]bool
-	Callgraph      map[FuncDescriptor][]FuncDescriptor
-	Interfaces     map[string]bool
-	Debug          bool
+	ProjectPath       string
+	PackagePattern    string
+	RootFunctions     []FuncDescriptor
+	FuncDecls         map[FuncDescriptor]bool
+	Callgraph         map[FuncDescriptor][]FuncDescriptor
+	Interfaces        map[string]bool
+	SelectedFunctions map[string]bool
+	Debug             bool
 }
 
 type importaction int

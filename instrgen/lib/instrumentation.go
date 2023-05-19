@@ -312,6 +312,42 @@ func (pass *InstrumentationPass) Execute(
 					return false
 				}
 			}
+			// skip if function has not been selected
+			_, exists = analysis.SelectedFunctions[fun.TypeHash()]
+			if !exists {
+				// TODO this can be optimized out
+				// however requires changes
+				// in context propagation pass
+				x.Body.List = append([]ast.Stmt{
+					&ast.AssignStmt{
+						Lhs: []ast.Expr{
+							&ast.Ident{
+								Name: "__atel_child_tracing_ctx",
+							},
+						},
+						Tok: token.DEFINE,
+						Rhs: []ast.Expr{
+							&ast.Ident{
+								Name: "__atel_tracing_ctx",
+							},
+						},
+					},
+					&ast.AssignStmt{
+						Lhs: []ast.Expr{
+							&ast.Ident{
+								Name: "_",
+							},
+						},
+						Tok: token.ASSIGN,
+						Rhs: []ast.Expr{
+							&ast.Ident{
+								Name: "__atel_child_tracing_ctx",
+							},
+						},
+					},
+				}, x.Body.List...)
+				return false
+			}
 			for _, root := range analysis.RootFunctions {
 				visited := map[FuncDescriptor]bool{}
 				fmt.Println("\t\t\tInstrumentation FuncDecl:", fundId, pkg.TypesInfo.Defs[x.Name].Type().String())
