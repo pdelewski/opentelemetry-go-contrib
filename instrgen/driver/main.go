@@ -29,9 +29,20 @@ import (
 	alib "go.opentelemetry.io/contrib/instrgen/lib"
 )
 
-type UiRequest struct {
+type UiInject struct {
 	Entrypoint string
 	Funcset    []string
+}
+
+type UiBuild struct {
+	BuildArgs string
+}
+
+type UiRun struct {
+	OtelServiceName            string
+	OtelTracesExporter         string
+	OtelExporterOtlpEndpoint   string
+	OtelExporterZipkinEndpoint string
 }
 
 func usage() error {
@@ -207,7 +218,7 @@ func reqInject(projectPath string, packagePattern string, w http.ResponseWriter,
 		}
 		defer r.Body.Close()
 	}
-	var uiReq UiRequest
+	var uiReq UiInject
 	json.Unmarshal([]byte(bodyBytes), &uiReq)
 	selectedFunctions := make(map[string]bool)
 	for _, selectedFun := range uiReq.Funcset {
@@ -263,18 +274,70 @@ func reqPrune(projectPath string, packagePattern string, w http.ResponseWriter, 
 
 func reqBuild(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
 	fmt.Println("build")
-	cmd := exec.Command("go", "build", ".")
+	var bodyBytes []byte
+	var err error
 
+	if r.Body != nil {
+		bodyBytes, err = io.ReadAll(r.Body)
+		if err != nil {
+			fmt.Printf("Body reading error: %v", err)
+			return
+		}
+		defer r.Body.Close()
+	}
+	var uiReq UiBuild
+	json.Unmarshal([]byte(bodyBytes), &uiReq)
+	buildArgs := strings.Split(uiReq.BuildArgs, " ")
+	fmt.Println(buildArgs)
+	cmd := exec.Command(buildArgs[0])
+	cmd.Args = append(cmd.Args, buildArgs[1:]...)
 	cmd.Dir = projectPath
-	err := cmd.Run()
+	err = cmd.Run()
 
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println("build succeeded")
 }
 
 func reqRun(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
 	fmt.Println("run")
+	var bodyBytes []byte
+	var err error
+
+	if r.Body != nil {
+		bodyBytes, err = io.ReadAll(r.Body)
+		if err != nil {
+			fmt.Printf("Body reading error: %v", err)
+			return
+		}
+		defer r.Body.Close()
+	}
+	var uiReq UiRun
+	json.Unmarshal([]byte(bodyBytes), &uiReq)
+	fmt.Println(uiReq)
+
+	cmd := exec.Command("go", "list", "-m")
+	cmd.Dir = projectPath
+	output, _ := cmd.CombinedOutput()
+
+	// TODO get correct executable name
+	execName := "./" + string(output)
+	execName = strings.Replace(execName, "\n", "", -1)
+	fmt.Println(execName)
+	runCmd := exec.Command(execName)
+	runCmd.Dir = projectPath
+
+	runCmd.Env = os.Environ()
+	runCmd.Env = append(cmd.Env, "OTEL_SERVICE_NAME="+uiReq.OtelServiceName)
+	runCmd.Env = append(cmd.Env, "OTEL_TRACES_EXPORTER="+uiReq.OtelTracesExporter)
+	//runCmd.Env = append(cmd.Env, "OTEL_EXPORTER_OTLP_ENDPOINT="+uiReq.OtelExporterOtlpEndpoint)
+	//runCmd.Env = append(cmd.Env, "OTEL_EXPORTER_ZIPKIN_ENDPOINT="+uiReq.OtelExporterZipkinEndpoint)
+	err = runCmd.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("run succeeded")
 }
 
 func server(projectPath string, packagePattern string) {

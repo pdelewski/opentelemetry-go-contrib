@@ -15,7 +15,55 @@ function httpPost(theUrl, entrypoint, funcSet)
 
     xhr.send(JSON.stringify(jsonRepr));
 }
+
+function httpPostBuild(theUrl, buildArgs)
+{
+    let jsonRepr = {}
+    jsonRepr["buildargs"] = buildArgs
+    let xhr = new XMLHttpRequest();
+    xhr.open("POST", theUrl, true);
+
+    xhr.setRequestHeader('Content-length', '0');
+
+    xhr.send(JSON.stringify(jsonRepr));
+}
+
+
+function httpPostNoContent(theUrl)
+{
+    let xhr = new XMLHttpRequest();
+    xhr.open("POST", theUrl, true);
+
+    xhr.setRequestHeader('Content-length', '0');
+
+    xhr.send('');
+}
+
 function clicked() {
+}
+
+function build_clicked(id, buildargs) {
+    if (id === 'build') {
+        httpPostBuild('http://localhost:8090/build', buildargs);
+    }
+}
+
+function run_clicked(id, otelservicename,
+                     oteltracesexporter,
+                     otelexporterotlpendpoint,
+                     otelexporterzipkinendpoint
+) {
+    let jsonRepr = {}
+    jsonRepr["otelservicename"] = otelservicename
+    jsonRepr["oteltracesexporter"] = oteltracesexporter
+    jsonRepr["otelexporterotlpendpoint"] = otelexporterotlpendpoint
+    jsonRepr["otelexporterzipkinendpoint"] = otelexporterzipkinendpoint
+    let xhr = new XMLHttpRequest();
+    xhr.open("POST", 'http://localhost:8090/run', true);
+
+    xhr.setRequestHeader('Content-length', '0');
+
+    xhr.send(JSON.stringify(jsonRepr));
 }
 
 function button_clicked(id, entrypoint) {
@@ -28,13 +76,7 @@ function button_clicked(id, entrypoint) {
         httpPost('http://localhost:8090/inject', entrypoint, funcSet);
     }
     if (id === 'prune') {
-        httpPost('http://localhost:8090/prune', entrypoint, funcSet);
-    }
-    if (id === 'build') {
-        httpPost('http://localhost:8090/build', entrypoint, funcSet);
-    }
-    if (id === 'run') {
-        httpPost('http://localhost:8090/run', entrypoint, funcSet);
+        httpPostNoContent('http://localhost:8090/prune');
     }
 }
 
@@ -44,16 +86,19 @@ function button_clicked(id, entrypoint) {
 <style>
    body {
       font-family: Courier;
+      font-size: 0.975em;
    }
    h1{
       padding:20px;
    }
    .table {
+      font-size: 0.875em;
       width: 10000px;
       margin-bottom: 0;
       max-width: none;
    }
    .left,.right {
+      font-size: 0.975em;
       height: 100%;
       position: fixed;
       z-index: 1;
