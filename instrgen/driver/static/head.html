@@ -14,6 +14,13 @@ function httpPost(theUrl, entrypoint, funcSet)
     xhr.setRequestHeader('Content-length', '0');
 
     xhr.send(JSON.stringify(jsonRepr));
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState == 4) {
+            if (xhr.status == 200) {
+                window.location.reload();
+            }
+        }
+    }
 }
 
 function httpPostBuild(theUrl, buildArgs)
@@ -37,6 +44,13 @@ function httpPostNoContent(theUrl)
     xhr.setRequestHeader('Content-length', '0');
 
     xhr.send('');
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState == 4) {
+            if (xhr.status == 200) {
+                window.location.reload();
+            }
+        }
+    }
 }
 
 function clicked() {

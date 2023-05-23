@@ -261,6 +261,16 @@ func reqInject(projectPath string, packagePattern string, w http.ResponseWriter,
 	if err != nil {
 		log.Fatal(err)
 	}
+	{
+		// reload
+		var rootFunctions []alib.FuncDescriptor
+		rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint")...)
+		interfaces := alib.FindInterfaces(projectPath, packagePattern)
+		funcDecls := alib.FindFuncDecls(projectPath, packagePattern, interfaces)
+		backwardCallGraph := alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces)
+		alib.GenerateForwardCfg(backwardCallGraph, "./static/index.html")
+		w.WriteHeader(200)
+	}
 	fmt.Println("\tinstrumentation done")
 }
 
@@ -270,6 +280,16 @@ func reqPrune(projectPath string, packagePattern string, w http.ResponseWriter, 
 	if err != nil {
 		log.Fatal(err)
 	}
+	// reload
+	var rootFunctions []alib.FuncDescriptor
+	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint")...)
+	interfaces := alib.FindInterfaces(projectPath, packagePattern)
+	funcDecls := alib.FindFuncDecls(projectPath, packagePattern, interfaces)
+	backwardCallGraph := alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces)
+
+	alib.GenerateForwardCfg(backwardCallGraph, "./static/index.html")
+	w.WriteHeader(200)
+	fmt.Println("\tprune done")
 }
 
 func reqBuild(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
