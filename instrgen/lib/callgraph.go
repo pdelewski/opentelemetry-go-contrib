@@ -392,16 +392,7 @@ func InferRootFunctionsFromGraph(callgraph map[FuncDescriptor][]FuncDescriptor) 
 	return rootFunctions
 }
 
-func GenerateForwardCfg(backwardCallgraph map[FuncDescriptor][]FuncDescriptor, path string) {
-	out, err := os.Create(path)
-	defer out.Close()
-	if err != nil {
-		return
-	}
-	rootFunctions := InferRootFunctionsFromGraph(backwardCallgraph)
-	head, _ := os.ReadFile("./static/head.html")
-
-	cfg := ReverseCfg(backwardCallgraph)
+func genTablePreamble(out *os.File, head []byte) {
 	out.WriteString("<html>\n")
 	out.WriteString("<link rel=\"stylesheet\" href=\"./default.min.css\">\n")
 	out.Write(head)
@@ -411,17 +402,9 @@ func GenerateForwardCfg(backwardCallgraph map[FuncDescriptor][]FuncDescriptor, p
 	out.WriteString("\n&nbsp;<label for=\"entrypointlabel\">EntryPoint:</label>")
 	out.WriteString("\n<input type=\"text\" id=\"entrypoint\" name=\"EntryPoint\" required size=\"100\">")
 	out.WriteString("\n<table class=\"table table-striped\">")
+}
 
-	for k, _ := range cfg {
-		for _, v := range rootFunctions {
-			if v.TypeHash() != k.TypeHash() {
-				continue
-			}
-			visited := make(map[FuncDescriptor]bool)
-			depth := 1
-			GenerateCfgHelper(cfg, k, out, visited, depth)
-		}
-	}
+func genTableEpilogue(out *os.File) {
 	out.WriteString("\n</table>")
 	out.WriteString("\n</div>")
 
@@ -447,6 +430,31 @@ func GenerateForwardCfg(backwardCallgraph map[FuncDescriptor][]FuncDescriptor, p
 
 	out.WriteString("\n</body>")
 	out.WriteString("\n</html>")
+}
+
+func GenerateForwardCfg(backwardCallgraph map[FuncDescriptor][]FuncDescriptor, path string) {
+	out, err := os.Create(path)
+	defer out.Close()
+	if err != nil {
+		return
+	}
+	rootFunctions := InferRootFunctionsFromGraph(backwardCallgraph)
+	head, _ := os.ReadFile("./static/head.html")
+
+	cfg := ReverseCfg(backwardCallgraph)
+	genTablePreamble(out, head)
+
+	for k, _ := range cfg {
+		for _, v := range rootFunctions {
+			if v.TypeHash() != k.TypeHash() {
+				continue
+			}
+			visited := make(map[FuncDescriptor]bool)
+			depth := 1
+			GenerateCfgHelper(cfg, k, out, visited, depth)
+		}
+	}
+	genTableEpilogue(out)
 }
 
 func GenerateCfgHelper(
