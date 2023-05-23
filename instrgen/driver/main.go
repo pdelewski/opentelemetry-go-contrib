@@ -329,10 +329,10 @@ func reqRun(projectPath string, packagePattern string, w http.ResponseWriter, r 
 	runCmd.Dir = projectPath
 
 	runCmd.Env = os.Environ()
-	runCmd.Env = append(cmd.Env, "OTEL_SERVICE_NAME="+uiReq.OtelServiceName)
-	runCmd.Env = append(cmd.Env, "OTEL_TRACES_EXPORTER="+uiReq.OtelTracesExporter)
-	//runCmd.Env = append(cmd.Env, "OTEL_EXPORTER_OTLP_ENDPOINT="+uiReq.OtelExporterOtlpEndpoint)
-	//runCmd.Env = append(cmd.Env, "OTEL_EXPORTER_ZIPKIN_ENDPOINT="+uiReq.OtelExporterZipkinEndpoint)
+	runCmd.Env = append(runCmd.Env, "OTEL_SERVICE_NAME="+uiReq.OtelServiceName)
+	runCmd.Env = append(runCmd.Env, "OTEL_TRACES_EXPORTER="+uiReq.OtelTracesExporter)
+	runCmd.Env = append(runCmd.Env, "OTEL_EXPORTER_OTLP_ENDPOINT="+uiReq.OtelExporterOtlpEndpoint)
+	runCmd.Env = append(runCmd.Env, "OTEL_EXPORTER_ZIPKIN_ENDPOINT="+uiReq.OtelExporterZipkinEndpoint)
 	err = runCmd.Run()
 	if err != nil {
 		log.Fatal(err)
