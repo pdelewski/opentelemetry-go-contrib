@@ -300,6 +300,19 @@ func reqBuild(projectPath string, packagePattern string, w http.ResponseWriter, 
 	fmt.Println("build succeeded")
 }
 
+func takeExeName(value string, a string) string {
+	// Get substring after a string.
+	pos := strings.LastIndex(value, a)
+	if pos == -1 {
+		return value
+	}
+	adjustedPos := pos + len(a)
+	if adjustedPos >= len(value) {
+		return ""
+	}
+	return value[adjustedPos:len(value)]
+}
+
 func reqRun(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
 	fmt.Println("run")
 	var bodyBytes []byte
@@ -321,8 +334,7 @@ func reqRun(projectPath string, packagePattern string, w http.ResponseWriter, r 
 	cmd.Dir = projectPath
 	output, _ := cmd.CombinedOutput()
 
-	// TODO get correct executable name
-	execName := "./" + string(output)
+	execName := "./" + takeExeName(string(output), "/")
 	execName = strings.Replace(execName, "\n", "", -1)
 	fmt.Println(execName)
 	runCmd := exec.Command(execName)
