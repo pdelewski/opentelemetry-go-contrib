@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-
 	"golang.org/x/tools/go/packages"
 )
 
@@ -350,7 +349,7 @@ func (pass *InstrumentationPass) Execute(
 			}
 			for _, root := range analysis.RootFunctions {
 				visited := map[FuncDescriptor]bool{}
-				fmt.Println("\t\t\tInstrumentation FuncDecl:", fundId, pkg.TypesInfo.Defs[x.Name].Type().String())
+				fmt.Fprintln(analysis.InstrgenLog, "\t\t\tInstrumentation FuncDecl:", fundId, pkg.TypesInfo.Defs[x.Name].Type().String())
 				if isPath(analysis.Callgraph, fun, root, visited) && fun.TypeHash() != root.TypeHash() {
 					x.Body.List = append(makeSpanStmts(x.Name.Name, "__atel_tracing_ctx"), x.Body.List...)
 					addContext = true

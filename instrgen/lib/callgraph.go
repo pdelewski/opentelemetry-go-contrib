@@ -15,6 +15,7 @@
 package lib // import "go.opentelemetry.io/contrib/instrgen/lib"
 
 import (
+	"bufio"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -46,7 +47,7 @@ const LoadMode packages.LoadMode = packages.NeedName |
 	packages.NeedTypesInfo |
 	packages.NeedFiles
 
-func getPkgs(projectPath string, packagePattern string, fset *token.FileSet) ([]*packages.Package, error) {
+func getPkgs(projectPath string, packagePattern string, fset *token.FileSet, instrgenLog *bufio.Writer) ([]*packages.Package, error) {
 	cfg := &packages.Config{Fset: fset, Mode: LoadMode, Dir: projectPath}
 	pkgs, err := packages.Load(cfg, packagePattern)
 	var packageSet []*packages.Package
@@ -54,7 +55,7 @@ func getPkgs(projectPath string, packagePattern string, fset *token.FileSet) ([]
 		return nil, err
 	}
 	for _, pkg := range pkgs {
-		fmt.Println("\t", pkg)
+		fmt.Fprintln(instrgenLog, "\t", pkg)
 		packageSet = append(packageSet, pkg)
 	}
 	return packageSet, nil
@@ -63,9 +64,9 @@ func getPkgs(projectPath string, packagePattern string, fset *token.FileSet) ([]
 // FindRootFunctions looks for all root functions eg. entry points.
 // Currently an entry point is a function that contains call of function
 // passed as functionLabel paramaterer.
-func FindRootFunctions(projectPath string, packagePattern string, functionLabel string) []FuncDescriptor {
+func FindRootFunctions(projectPath string, packagePattern string, functionLabel string, instrgenLog *bufio.Writer) []FuncDescriptor {
 	fset := token.NewFileSet()
-	pkgs, _ := getPkgs(projectPath, packagePattern, fset)
+	pkgs, _ := getPkgs(projectPath, packagePattern, fset, instrgenLog)
 	var currentFun FuncDescriptor
 	var rootFunctions []FuncDescriptor
 	for _, pkg := range pkgs {
@@ -83,13 +84,14 @@ func FindRootFunctions(projectPath string, packagePattern string, functionLabel 
 					if pkg.TypesInfo.Defs[xNode.Name] != nil {
 						funId := pkg.TypesInfo.Defs[xNode.Name].Pkg().Path() + "." + pkg.TypesInfo.Defs[xNode.Name].Name()
 						currentFun = FuncDescriptor{funId, pkg.TypesInfo.Defs[xNode.Name].Type().String(), false}
-						fmt.Println("\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[xNode.Name].Type().String())
+						fmt.Fprintln(instrgenLog, "\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[xNode.Name].Type().String())
 					}
 				}
 				return true
 			})
 		}
 	}
+	instrgenLog.Flush()
 	return rootFunctions
 }
 
@@ -262,23 +264,23 @@ func BuildCallGraph(
 	projectPath string,
 	packagePattern string,
 	funcDecls map[FuncDescriptor]bool,
-	interfaces map[string]bool) map[FuncDescriptor][]FuncDescriptor {
+	interfaces map[string]bool, instrgenLog *bufio.Writer) map[FuncDescriptor][]FuncDescriptor {
 	fset := token.NewFileSet()
-	pkgs, _ := getPkgs(projectPath, packagePattern, fset)
-	fmt.Println("BuildCallGraph")
+	pkgs, _ := getPkgs(projectPath, packagePattern, fset, instrgenLog)
+	fmt.Fprint(instrgenLog, "BuildCallGraph")
 	currentFun := FuncDescriptor{"nil", "", false}
 	backwardCallGraph := make(map[FuncDescriptor][]FuncDescriptor)
 	for _, pkg := range pkgs {
-		fmt.Println("\t", pkg)
+		fmt.Fprintln(instrgenLog, "\t", pkg)
 		for _, node := range pkg.Syntax {
-			fmt.Println("\t\t", fset.File(node.Pos()).Name())
+			fmt.Fprintln(instrgenLog, "\t\t", fset.File(node.Pos()).Name())
 			ast.Inspect(node, func(n ast.Node) bool {
 				switch xNode := n.(type) {
 				case *ast.CallExpr:
 					if id, ok := xNode.Fun.(*ast.Ident); ok {
 						pkgPath := GetPkgNameFromUsesTable(pkg, id)
 						funId := pkgPath + "." + pkg.TypesInfo.Uses[id].Name()
-						fmt.Println("\t\t\tFuncCall:", funId, pkg.TypesInfo.Uses[id].Type().String(),
+						fmt.Fprintln(instrgenLog, "\t\t\tFuncCall:", funId, pkg.TypesInfo.Uses[id].Type().String(),
 							" @called : ",
 							fset.File(node.Pos()).Name())
 						fun := FuncDescriptor{funId, pkg.TypesInfo.Uses[id].Type().String(), false}
@@ -295,7 +297,7 @@ func BuildCallGraph(
 								pkgPath = GetSelectorPkgPath(sel, pkg, pkgPath)
 							}
 							funId := pkgPath + "." + pkg.TypesInfo.Uses[sel.Sel].Name()
-							fmt.Println("\t\t\tFuncCall via selector:", funId, pkg.TypesInfo.Uses[sel.Sel].Type().String(),
+							fmt.Fprintln(instrgenLog, "\t\t\tFuncCall via selector:", funId, pkg.TypesInfo.Uses[sel.Sel].Type().String(),
 								" @called : ",
 								fset.File(node.Pos()).Name())
 							fun := FuncDescriptor{funId, pkg.TypesInfo.Uses[sel.Sel].Type().String(), false}
@@ -312,32 +314,33 @@ func BuildCallGraph(
 						funId := pkgPath + "." + pkg.TypesInfo.Defs[xNode.Name].Name()
 						funcDecls[FuncDescriptor{funId, pkg.TypesInfo.Defs[xNode.Name].Type().String(), false}] = true
 						currentFun = FuncDescriptor{funId, pkg.TypesInfo.Defs[xNode.Name].Type().String(), false}
-						fmt.Println("\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[xNode.Name].Type().String())
+						fmt.Fprintln(instrgenLog, "\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[xNode.Name].Type().String())
 					}
 				}
 				return true
 			})
 		}
 	}
+	instrgenLog.Flush()
 	return backwardCallGraph
 }
 
 // FindFuncDecls looks for all function declarations.
-func FindFuncDecls(projectPath string, packagePattern string, interfaces map[string]bool) map[FuncDescriptor]bool {
+func FindFuncDecls(projectPath string, packagePattern string, interfaces map[string]bool, instrgenLog *bufio.Writer) map[FuncDescriptor]bool {
 	fset := token.NewFileSet()
-	pkgs, _ := getPkgs(projectPath, packagePattern, fset)
-	fmt.Println("FindFuncDecls")
+	pkgs, _ := getPkgs(projectPath, packagePattern, fset, instrgenLog)
+	fmt.Fprintln(instrgenLog, "FindFuncDecls")
 	funcDecls := make(map[FuncDescriptor]bool)
 	for _, pkg := range pkgs {
-		fmt.Println("\t", pkg)
+		fmt.Fprintln(instrgenLog, "\t", pkg)
 		for _, node := range pkg.Syntax {
-			fmt.Println("\t\t", fset.File(node.Pos()).Name())
+			fmt.Fprintln(instrgenLog, "\t\t", fset.File(node.Pos()).Name())
 			ast.Inspect(node, func(n ast.Node) bool {
 				if funDeclNode, ok := n.(*ast.FuncDecl); ok {
 					pkgPath := GetPkgPathForFunction(pkg, pkgs, funDeclNode, interfaces)
 					if pkg.TypesInfo.Defs[funDeclNode.Name] != nil {
 						funId := pkgPath + "." + pkg.TypesInfo.Defs[funDeclNode.Name].Name()
-						fmt.Println("\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[funDeclNode.Name].Type().String())
+						fmt.Fprintln(instrgenLog, "\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[funDeclNode.Name].Type().String())
 						funcDecls[FuncDescriptor{funId, pkg.TypesInfo.Defs[funDeclNode.Name].Type().String(), false}] = true
 					}
 				}
@@ -345,23 +348,24 @@ func FindFuncDecls(projectPath string, packagePattern string, interfaces map[str
 			})
 		}
 	}
+	instrgenLog.Flush()
 	return funcDecls
 }
 
 // FindInterfaces looks for all interfaces.
-func FindInterfaces(projectPath string, packagePattern string) map[string]bool {
+func FindInterfaces(projectPath string, packagePattern string, instrgenLog *bufio.Writer) map[string]bool {
 	fset := token.NewFileSet()
-	pkgs, _ := getPkgs(projectPath, packagePattern, fset)
-	fmt.Println("FindInterfaces")
+	pkgs, _ := getPkgs(projectPath, packagePattern, fset, instrgenLog)
+	fmt.Fprintln(instrgenLog, "FindInterfaces")
 	interaceTable := make(map[string]bool)
 	for _, pkg := range pkgs {
-		fmt.Println("\t", pkg)
+		fmt.Fprintln(instrgenLog, "\t", pkg)
 		for _, node := range pkg.Syntax {
-			fmt.Println("\t\t", fset.File(node.Pos()).Name())
+			fmt.Fprintln(instrgenLog, "\t\t", fset.File(node.Pos()).Name())
 			ast.Inspect(node, func(n ast.Node) bool {
 				if typeSpecNode, ok := n.(*ast.TypeSpec); ok {
 					if _, ok := typeSpecNode.Type.(*ast.InterfaceType); ok {
-						fmt.Println("\t\t\tInterface:", pkg.TypesInfo.Defs[typeSpecNode.Name].Type().String())
+						fmt.Fprintln(instrgenLog, "\t\t\tInterface:", pkg.TypesInfo.Defs[typeSpecNode.Name].Type().String())
 						interaceTable[pkg.TypesInfo.Defs[typeSpecNode.Name].Type().String()] = true
 					}
 				}
@@ -369,6 +373,7 @@ func FindInterfaces(projectPath string, packagePattern string) map[string]bool {
 			})
 		}
 	}
+	instrgenLog.Flush()
 	return interaceTable
 }
 
@@ -431,7 +436,7 @@ func genTableEpilogue(out *os.File) {
 	out.WriteString("\n&nbsp;&nbsp;<button id=\"run\" type=\"button\" class=\"btn\" onclick=\"run_clicked(this.id, otelservicename.value, oteltracesexporter.value, otelexporterendpoint.value, zipkinexporterendpoint.value)\">Run</button><br><br>")
 	out.WriteString("\n</div>")
 
-	out.WriteString("\n<div class=\"bottom\">")
+	out.WriteString("\n<div id=\"terminal\" class=\"bottom\">")
 	out.WriteString("\n<h3>Terminal</h3>")
 	out.WriteString("\n</div>")
 

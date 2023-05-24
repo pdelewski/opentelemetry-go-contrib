@@ -15,9 +15,11 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
+	alib "go.opentelemetry.io/contrib/instrgen/lib"
 	"go/ast"
 	"io"
 	"log"
@@ -25,8 +27,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-
-	alib "go.opentelemetry.io/contrib/instrgen/lib"
 )
 
 type UiInject struct {
@@ -58,19 +58,19 @@ func usage() error {
 	return nil
 }
 
-func makeAnalysis(projectPath string, packagePattern string, debug bool) *alib.PackageAnalysis {
+func makeAnalysis(projectPath string, packagePattern string, debug bool, instrgenLog *bufio.Writer) *alib.PackageAnalysis {
 	var rootFunctions []alib.FuncDescriptor
 
-	interfaces := alib.FindInterfaces(projectPath, packagePattern)
-	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint")...)
-	funcDecls := alib.FindFuncDecls(projectPath, packagePattern, interfaces)
-	backwardCallGraph := alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces)
-	fmt.Println("\n\tchild parent")
+	interfaces := alib.FindInterfaces(projectPath, packagePattern, instrgenLog)
+	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint", instrgenLog)...)
+	funcDecls := alib.FindFuncDecls(projectPath, packagePattern, interfaces, instrgenLog)
+	backwardCallGraph := alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces, instrgenLog)
+	fmt.Fprintln(instrgenLog, "\n\tchild parent")
 	for k, v := range backwardCallGraph {
-		fmt.Print("\n\t", k)
-		fmt.Print(" ", v)
+		fmt.Fprint(instrgenLog, "\n\t", k)
+		fmt.Fprint(instrgenLog, " ", v)
 	}
-	fmt.Println("")
+	fmt.Fprintln(instrgenLog, "")
 	selectedFunctions := make(map[string]bool)
 	for k, _ := range funcDecls {
 		selectedFunctions[k.TypeHash()] = true
@@ -83,44 +83,45 @@ func makeAnalysis(projectPath string, packagePattern string, debug bool) *alib.P
 		Callgraph:         backwardCallGraph,
 		Interfaces:        interfaces,
 		SelectedFunctions: selectedFunctions,
+		InstrgenLog:       instrgenLog,
 		Debug:             debug}
 	return analysis
 }
 
 // Prune.
-func Prune(projectPath string, packagePattern string, debug bool) ([]*ast.File, error) {
-	analysis := makeAnalysis(projectPath, packagePattern, debug)
+func Prune(projectPath string, packagePattern string, debug bool, instrgenLog *bufio.Writer) ([]*ast.File, error) {
+	analysis := makeAnalysis(projectPath, packagePattern, debug, instrgenLog)
 	return analysis.Execute(&alib.OtelPruner{}, otelPrunerPassSuffix)
 }
 
-func makeCallGraph(projectPath string, packagePattern string) map[alib.FuncDescriptor][]alib.FuncDescriptor {
+func makeCallGraph(projectPath string, packagePattern string, instrgenLog *bufio.Writer) map[alib.FuncDescriptor][]alib.FuncDescriptor {
 	var funcDecls map[alib.FuncDescriptor]bool
 	var backwardCallGraph map[alib.FuncDescriptor][]alib.FuncDescriptor
 
-	interfaces := alib.FindInterfaces(projectPath, packagePattern)
-	funcDecls = alib.FindFuncDecls(projectPath, packagePattern, interfaces)
-	backwardCallGraph = alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces)
+	interfaces := alib.FindInterfaces(projectPath, packagePattern, instrgenLog)
+	funcDecls = alib.FindFuncDecls(projectPath, packagePattern, interfaces, instrgenLog)
+	backwardCallGraph = alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces, instrgenLog)
 	return backwardCallGraph
 }
 
-func makeRootFunctions(projectPath string, packagePattern string) []alib.FuncDescriptor {
+func makeRootFunctions(projectPath string, packagePattern string, instrgenLog *bufio.Writer) []alib.FuncDescriptor {
 	var rootFunctions []alib.FuncDescriptor
-	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint")...)
+	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint", instrgenLog)...)
 	return rootFunctions
 }
 
-func dumpCallGraph(callGraph map[alib.FuncDescriptor][]alib.FuncDescriptor) {
-	fmt.Println("\n\tchild parent")
+func dumpCallGraph(callGraph map[alib.FuncDescriptor][]alib.FuncDescriptor, instrgenLog *bufio.Writer) {
+	fmt.Fprintln(instrgenLog, "\n\tchild parent")
 	for k, v := range callGraph {
-		fmt.Print("\n\t", k)
-		fmt.Print(" ", v)
+		fmt.Fprint(instrgenLog, "\n\t", k)
+		fmt.Fprint(instrgenLog, " ", v)
 	}
 }
 
-func dumpRootFunctions(rootFunctions []alib.FuncDescriptor) {
-	fmt.Println("rootfunctions:")
+func dumpRootFunctions(rootFunctions []alib.FuncDescriptor, instrgenLog *bufio.Writer) {
+	fmt.Fprintln(instrgenLog, "rootfunctions:")
 	for _, fun := range rootFunctions {
-		fmt.Println("\t" + fun.TypeHash())
+		fmt.Fprintln(instrgenLog, "\t"+fun.TypeHash())
 	}
 }
 
@@ -137,7 +138,7 @@ func isDirectory(path string) (bool, error) {
 // decls and infer function bodies to find call to AutotelEntryPoint
 // A parent function of this call will become root of instrumentation
 // Each function call from this place will be instrumented automatically.
-func executeCommand(command string, projectPath string, packagePattern string) error {
+func executeCommand(command string, projectPath string, packagePattern string, instrgenLog *bufio.Writer) error {
 	isDir, err := isDirectory(projectPath)
 	if !isDir {
 		_ = usage()
@@ -148,11 +149,11 @@ func executeCommand(command string, projectPath string, packagePattern string) e
 	}
 	switch command {
 	case "--inject":
-		_, err := Prune(projectPath, packagePattern, false)
+		_, err := Prune(projectPath, packagePattern, false, instrgenLog)
 		if err != nil {
 			return err
 		}
-		analysis := makeAnalysis(projectPath, packagePattern, false)
+		analysis := makeAnalysis(projectPath, packagePattern, false, instrgenLog)
 		err = ExecutePasses(analysis)
 		if err != nil {
 			return err
@@ -160,11 +161,11 @@ func executeCommand(command string, projectPath string, packagePattern string) e
 		fmt.Println("\tinstrumentation done")
 		return nil
 	case "--inject-dump-ir":
-		_, err := Prune(projectPath, packagePattern, true)
+		_, err := Prune(projectPath, packagePattern, true, instrgenLog)
 		if err != nil {
 			return err
 		}
-		analysis := makeAnalysis(projectPath, packagePattern, true)
+		analysis := makeAnalysis(projectPath, packagePattern, true, instrgenLog)
 		err = ExecutePassesDumpIr(analysis)
 		if err != nil {
 			return err
@@ -172,25 +173,26 @@ func executeCommand(command string, projectPath string, packagePattern string) e
 		fmt.Println("\tinstrumentation done")
 		return nil
 	case "--dumpcfg":
-		backwardCallGraph := makeCallGraph(projectPath, packagePattern)
-		dumpCallGraph(backwardCallGraph)
+		backwardCallGraph := makeCallGraph(projectPath, packagePattern, instrgenLog)
+		dumpCallGraph(backwardCallGraph, instrgenLog)
 		return nil
 	case "--rootfunctions":
-		rootFunctions := makeRootFunctions(projectPath, packagePattern)
-		dumpRootFunctions(rootFunctions)
+		rootFunctions := makeRootFunctions(projectPath, packagePattern, instrgenLog)
+		dumpRootFunctions(rootFunctions, instrgenLog)
 		return nil
 	case "--prune":
-		_, err := Prune(projectPath, packagePattern, false)
+		_, err := Prune(projectPath, packagePattern, false, instrgenLog)
 		if err != nil {
 			return err
 		}
+		fmt.Println("\tprune done")
 		return nil
 	case "--generatecfg":
-		backwardCallGraph := makeCallGraph(projectPath, packagePattern)
+		backwardCallGraph := makeCallGraph(projectPath, packagePattern, instrgenLog)
 		alib.GenerateForwardCfg(backwardCallGraph, "cfg")
 		return nil
 	case "--server":
-		server(projectPath, packagePattern)
+		server(projectPath, packagePattern, instrgenLog)
 		return nil
 	default:
 		return errors.New("unknown command")
@@ -205,15 +207,15 @@ func checkArgs(args []string) error {
 	return nil
 }
 
-func reqInject(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
-	fmt.Println("inject")
+func reqInject(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request, instrgenLog *bufio.Writer) {
+	fmt.Fprintln(instrgenLog, "inject")
 	var bodyBytes []byte
 	var err error
 
 	if r.Body != nil {
 		bodyBytes, err = io.ReadAll(r.Body)
 		if err != nil {
-			fmt.Printf("Body reading error: %v", err)
+			fmt.Fprintf(instrgenLog, "Body reading error: %v", err)
 			return
 		}
 		defer r.Body.Close()
@@ -224,7 +226,7 @@ func reqInject(projectPath string, packagePattern string, w http.ResponseWriter,
 	for _, selectedFun := range uiReq.Funcset {
 		selectedFunctions[selectedFun] = true
 	}
-	fmt.Println("JsonBody : ", uiReq)
+	fmt.Fprintln(instrgenLog, "JsonBody : ", uiReq)
 	entryPointFunSignature := strings.Split(uiReq.Entrypoint, ":")
 	if len(entryPointFunSignature) < 1 {
 		log.Fatal("lack of entry point function")
@@ -233,21 +235,21 @@ func reqInject(projectPath string, packagePattern string, w http.ResponseWriter,
 	rootFuncs := make([]alib.FuncDescriptor, 1)
 	rootFuncs[0] = alib.FuncDescriptor{entryPointFunSignature[0], entryPointFunSignature[1], false}
 
-	_, err = Prune(projectPath, packagePattern, false)
+	_, err = Prune(projectPath, packagePattern, false, instrgenLog)
 	if err != nil {
 		log.Fatal(err)
 	}
 	var rootFunctions []alib.FuncDescriptor
-	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint")...)
-	interfaces := alib.FindInterfaces(projectPath, packagePattern)
-	funcDecls := alib.FindFuncDecls(projectPath, packagePattern, interfaces)
-	backwardCallGraph := alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces)
-	fmt.Println("\n\tchild parent")
+	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint", instrgenLog)...)
+	interfaces := alib.FindInterfaces(projectPath, packagePattern, instrgenLog)
+	funcDecls := alib.FindFuncDecls(projectPath, packagePattern, interfaces, instrgenLog)
+	backwardCallGraph := alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces, instrgenLog)
+	fmt.Fprintln(instrgenLog, "\n\tchild parent")
 	for k, v := range backwardCallGraph {
-		fmt.Print("\n\t", k)
-		fmt.Print(" ", v)
+		fmt.Fprint(instrgenLog, "\n\t", k)
+		fmt.Fprint(instrgenLog, " ", v)
 	}
-	fmt.Println("")
+	fmt.Fprintln(instrgenLog, "")
 	analysis := &alib.PackageAnalysis{
 		ProjectPath:       projectPath,
 		PackagePattern:    packagePattern,
@@ -256,6 +258,7 @@ func reqInject(projectPath string, packagePattern string, w http.ResponseWriter,
 		Callgraph:         backwardCallGraph,
 		Interfaces:        interfaces,
 		SelectedFunctions: selectedFunctions,
+		InstrgenLog:       instrgenLog,
 		Debug:             false}
 	err = ExecutePasses(analysis)
 	if err != nil {
@@ -264,43 +267,46 @@ func reqInject(projectPath string, packagePattern string, w http.ResponseWriter,
 	{
 		// reload
 		var rootFunctions []alib.FuncDescriptor
-		rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint")...)
-		interfaces := alib.FindInterfaces(projectPath, packagePattern)
-		funcDecls := alib.FindFuncDecls(projectPath, packagePattern, interfaces)
-		backwardCallGraph := alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces)
+		rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint", instrgenLog)...)
+		interfaces := alib.FindInterfaces(projectPath, packagePattern, instrgenLog)
+		funcDecls := alib.FindFuncDecls(projectPath, packagePattern, interfaces, instrgenLog)
+		backwardCallGraph := alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces, instrgenLog)
 		alib.GenerateForwardCfg(backwardCallGraph, "./static/index.html")
 		w.WriteHeader(200)
 	}
-	fmt.Println("\tinstrumentation done")
+	fmt.Fprintln(instrgenLog, "\tinstrumentation done")
+	instrgenLog.Flush()
 }
 
-func reqPrune(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
-	fmt.Println("prune")
-	err := executeCommand("--prune", projectPath, packagePattern)
+func reqPrune(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request, instrgenLog *bufio.Writer) {
+	fmt.Fprintln(instrgenLog, "prune")
+	err := executeCommand("--prune", projectPath, packagePattern, instrgenLog)
 	if err != nil {
 		log.Fatal(err)
 	}
 	// reload
 	var rootFunctions []alib.FuncDescriptor
-	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint")...)
-	interfaces := alib.FindInterfaces(projectPath, packagePattern)
-	funcDecls := alib.FindFuncDecls(projectPath, packagePattern, interfaces)
-	backwardCallGraph := alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces)
+	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint", instrgenLog)...)
+	interfaces := alib.FindInterfaces(projectPath, packagePattern, instrgenLog)
+	funcDecls := alib.FindFuncDecls(projectPath, packagePattern, interfaces, instrgenLog)
+	backwardCallGraph := alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces, instrgenLog)
 
 	alib.GenerateForwardCfg(backwardCallGraph, "./static/index.html")
+
 	w.WriteHeader(200)
-	fmt.Println("\tprune done")
+	fmt.Fprintln(instrgenLog, "\tprune done")
+	instrgenLog.Flush()
 }
 
-func reqBuild(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
-	fmt.Println("build")
+func reqBuild(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request, instrgenLog *bufio.Writer) {
+	fmt.Fprintln(instrgenLog, "build")
 	var bodyBytes []byte
 	var err error
 
 	if r.Body != nil {
 		bodyBytes, err = io.ReadAll(r.Body)
 		if err != nil {
-			fmt.Printf("Body reading error: %v", err)
+			fmt.Fprintf(instrgenLog, "Body reading error: %v", err)
 			return
 		}
 		defer r.Body.Close()
@@ -308,7 +314,7 @@ func reqBuild(projectPath string, packagePattern string, w http.ResponseWriter, 
 	var uiReq UiBuild
 	json.Unmarshal([]byte(bodyBytes), &uiReq)
 	buildArgs := strings.Split(uiReq.BuildArgs, " ")
-	fmt.Println(buildArgs)
+	fmt.Fprintln(instrgenLog, buildArgs)
 	cmd := exec.Command(buildArgs[0])
 	cmd.Args = append(cmd.Args, buildArgs[1:]...)
 	cmd.Dir = projectPath
@@ -317,7 +323,8 @@ func reqBuild(projectPath string, packagePattern string, w http.ResponseWriter, 
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("build succeeded")
+	fmt.Fprintln(instrgenLog, "build succeeded")
+	instrgenLog.Flush()
 }
 
 func takeExeName(value string, a string) string {
@@ -333,22 +340,22 @@ func takeExeName(value string, a string) string {
 	return value[adjustedPos:len(value)]
 }
 
-func reqRun(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request) {
-	fmt.Println("run")
+func reqRun(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request, instrgenLog *bufio.Writer) {
+	fmt.Fprintln(instrgenLog, "run")
 	var bodyBytes []byte
 	var err error
 
 	if r.Body != nil {
 		bodyBytes, err = io.ReadAll(r.Body)
 		if err != nil {
-			fmt.Printf("Body reading error: %v", err)
+			fmt.Fprintf(instrgenLog, "Body reading error: %v", err)
 			return
 		}
 		defer r.Body.Close()
 	}
 	var uiReq UiRun
 	json.Unmarshal([]byte(bodyBytes), &uiReq)
-	fmt.Println(uiReq)
+	fmt.Fprintln(instrgenLog, uiReq)
 
 	cmd := exec.Command("go", "list", "-m")
 	cmd.Dir = projectPath
@@ -356,7 +363,7 @@ func reqRun(projectPath string, packagePattern string, w http.ResponseWriter, r 
 
 	execName := "./" + takeExeName(string(output), "/")
 	execName = strings.Replace(execName, "\n", "", -1)
-	fmt.Println(execName)
+	fmt.Fprintln(instrgenLog, execName)
 	runCmd := exec.Command(execName)
 	runCmd.Dir = projectPath
 
@@ -369,24 +376,34 @@ func reqRun(projectPath string, packagePattern string, w http.ResponseWriter, r 
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("run succeeded")
+	fmt.Fprintln(instrgenLog, "run succeeded")
+	instrgenLog.Flush()
 }
 
-func server(projectPath string, packagePattern string) {
-	backwardCallGraph := makeCallGraph(projectPath, packagePattern)
+func reqTerminal(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request, instrgenLog *bufio.Writer) {
+	//fmt.Fprintln(instrgenLog, "reqTerminal")
+	w.WriteHeader(200)
+
+}
+
+func server(projectPath string, packagePattern string, instrgenLog *bufio.Writer) {
+	backwardCallGraph := makeCallGraph(projectPath, packagePattern, instrgenLog)
 	alib.GenerateForwardCfg(backwardCallGraph, "./static/index.html")
 
 	http.HandleFunc("/inject", func(w http.ResponseWriter, r *http.Request) {
-		reqInject(projectPath, packagePattern, w, r)
+		reqInject(projectPath, packagePattern, w, r, instrgenLog)
 	})
 	http.HandleFunc("/prune", func(w http.ResponseWriter, r *http.Request) {
-		reqPrune(projectPath, packagePattern, w, r)
+		reqPrune(projectPath, packagePattern, w, r, instrgenLog)
 	})
 	http.HandleFunc("/build", func(w http.ResponseWriter, r *http.Request) {
-		reqBuild(projectPath, packagePattern, w, r)
+		reqBuild(projectPath, packagePattern, w, r, instrgenLog)
 	})
 	http.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
-		reqRun(projectPath, packagePattern, w, r)
+		reqRun(projectPath, packagePattern, w, r, instrgenLog)
+	})
+	http.HandleFunc("/terminal", func(w http.ResponseWriter, r *http.Request) {
+		reqTerminal(projectPath, packagePattern, w, r, instrgenLog)
 	})
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/", fs)
@@ -397,11 +414,13 @@ func server(projectPath string, packagePattern string) {
 
 func main() {
 	fmt.Println("autotel compiler")
-	err := checkArgs(os.Args)
+	logFile, err := os.Create("instrgen.log")
+	instrgenWriter := bufio.NewWriter(logFile)
+	err = checkArgs(os.Args)
 	if err != nil {
 		return
 	}
-	err = executeCommand(os.Args[1], os.Args[2], os.Args[3])
+	err = executeCommand(os.Args[1], os.Args[2], os.Args[3], instrgenWriter)
 	if err != nil {
 		log.Fatal(err)
 	}

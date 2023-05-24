@@ -42,8 +42,9 @@ function httpPostNoContent(theUrl)
     xhr.open("POST", theUrl, true);
 
     xhr.setRequestHeader('Content-length', '0');
-
     xhr.send('');
+
+
     xhr.onreadystatechange = function() {
         if (xhr.readyState == 4) {
             if (xhr.status == 200) {
@@ -52,6 +53,29 @@ function httpPostNoContent(theUrl)
         }
     }
 }
+
+function updateTerminal() {
+    let xhr = new XMLHttpRequest();
+    let theUrl = 'http://localhost:8090/terminal';
+    xhr.open("POST", theUrl, true);
+
+    xhr.setRequestHeader('Content-length', '0');
+
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState == 4) {
+            if (xhr.status == 200) {
+                let div = document.getElementById('terminal');
+                div.innerHTML += 'Extra stuff<br>';
+            }
+        }
+    }
+    xhr.send('');
+
+}
+
+setInterval(function() {
+    updateTerminal()
+}, 1000);
 
 function clicked() {
 }

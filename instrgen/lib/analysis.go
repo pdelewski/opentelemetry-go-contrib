@@ -15,6 +15,7 @@
 package lib // import "go.opentelemetry.io/contrib/instrgen/lib"
 
 import (
+	"bufio"
 	"fmt"
 	"go/ast"
 	"go/printer"
@@ -37,6 +38,7 @@ type PackageAnalysis struct {
 	Callgraph         map[FuncDescriptor][]FuncDescriptor
 	Interfaces        map[string]bool
 	SelectedFunctions map[string]bool
+	InstrgenLog       *bufio.Writer
 	Debug             bool
 }
 
@@ -104,11 +106,11 @@ func (analysis *PackageAnalysis) Execute(pass FileAnalysisPass, fileSuffix strin
 	}
 	var fileNodeSet []*ast.File
 	for _, pkg := range pkgs {
-		fmt.Println("\t", pkg)
+		fmt.Fprintln(analysis.InstrgenLog, "\t", pkg)
 		// fileNode represents a translationUnit
 		var fileNode *ast.File
 		for _, fileNode = range pkg.Syntax {
-			fmt.Println("\t\t", fset.File(fileNode.Pos()).Name())
+			fmt.Fprintln(analysis.InstrgenLog, "\t\t", fset.File(fileNode.Pos()).Name())
 			var out *os.File
 			out, err = createFile(fset.File(fileNode.Pos()).Name() + fileSuffix)
 			if err != nil {
@@ -138,5 +140,6 @@ func (analysis *PackageAnalysis) Execute(pass FileAnalysisPass, fileSuffix strin
 			fileNodeSet = append(fileNodeSet, fileNode)
 		}
 	}
+	analysis.InstrgenLog.Flush()
 	return fileNodeSet, nil
 }
