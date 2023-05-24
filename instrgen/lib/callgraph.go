@@ -436,8 +436,9 @@ func genTableEpilogue(out *os.File) {
 	out.WriteString("\n&nbsp;&nbsp;<button id=\"run\" type=\"button\" class=\"btn\" onclick=\"run_clicked(this.id, otelservicename.value, oteltracesexporter.value, otelexporterendpoint.value, zipkinexporterendpoint.value)\">Run</button><br><br>")
 	out.WriteString("\n</div>")
 
-	out.WriteString("\n<div id=\"terminal\" class=\"bottom\">")
+	out.WriteString("\n<div id=\"terminaldiv\" class=\"bottom\">")
 	out.WriteString("\n<h3>Terminal</h3>")
+	out.WriteString("\n<textarea cols=\"2\" rows=\"12\" id=\"terminal\"></textarea>")
 	out.WriteString("\n</div>")
 
 	out.WriteString("\n</body>")

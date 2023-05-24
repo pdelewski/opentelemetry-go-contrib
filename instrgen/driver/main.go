@@ -380,16 +380,34 @@ func reqRun(projectPath string, packagePattern string, w http.ResponseWriter, r 
 	instrgenLog.Flush()
 }
 
-func reqTerminal(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request, instrgenLog *bufio.Writer) {
-	//fmt.Fprintln(instrgenLog, "reqTerminal")
+func reqTerminal(projectPath string, packagePattern string, w http.ResponseWriter, r *http.Request, instrgenLog *bufio.Writer, fileOffset *int64) {
 	w.WriteHeader(200)
+	file, err := os.Open("instrgen.log")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer file.Close()
 
+	fileinfo, err := file.Stat()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	filesize := int64(fileinfo.Size())
+	chunkSize := filesize - *fileOffset
+	buffer := make([]byte, chunkSize)
+
+	bytesread, err := file.ReadAt(buffer, *fileOffset)
+	*fileOffset += int64(bytesread)
+	w.Write(buffer)
 }
 
 func server(projectPath string, packagePattern string, instrgenLog *bufio.Writer) {
 	backwardCallGraph := makeCallGraph(projectPath, packagePattern, instrgenLog)
 	alib.GenerateForwardCfg(backwardCallGraph, "./static/index.html")
-
+	var fileOffset int64
+	fileOffset = 0
 	http.HandleFunc("/inject", func(w http.ResponseWriter, r *http.Request) {
 		reqInject(projectPath, packagePattern, w, r, instrgenLog)
 	})
@@ -403,7 +421,7 @@ func server(projectPath string, packagePattern string, instrgenLog *bufio.Writer
 		reqRun(projectPath, packagePattern, w, r, instrgenLog)
 	})
 	http.HandleFunc("/terminal", func(w http.ResponseWriter, r *http.Request) {
-		reqTerminal(projectPath, packagePattern, w, r, instrgenLog)
+		reqTerminal(projectPath, packagePattern, w, r, instrgenLog, &fileOffset)
 	})
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/", fs)
@@ -415,6 +433,10 @@ func server(projectPath string, packagePattern string, instrgenLog *bufio.Writer
 func main() {
 	fmt.Println("autotel compiler")
 	logFile, err := os.Create("instrgen.log")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer logFile.Close()
 	instrgenWriter := bufio.NewWriter(logFile)
 	err = checkArgs(os.Args)
 	if err != nil {
