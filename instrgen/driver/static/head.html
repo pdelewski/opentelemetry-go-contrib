@@ -1,5 +1,5 @@
 <script type="text/javascript">
-function httpPost(theUrl, entrypoint, funcSet)
+function httpPostInject(theUrl, entrypoint, funcSet)
 {
     if (funcSet.includes(entrypoint) === false) {
         alert("Unknown entry point, entry point needs to be selected element of callgraph")
@@ -8,12 +8,12 @@ function httpPost(theUrl, entrypoint, funcSet)
     let jsonRepr = {}
     jsonRepr["entrypoint"] = entrypoint
     jsonRepr["funcset"] = funcSet
+
     let xhr = new XMLHttpRequest();
     xhr.open("POST", theUrl, true);
-
     xhr.setRequestHeader('Content-length', '0');
-
     xhr.send(JSON.stringify(jsonRepr));
+
     xhr.onreadystatechange = function() {
         if (xhr.readyState == 4) {
             if (xhr.status == 200) {
@@ -27,23 +27,20 @@ function httpPostBuild(theUrl, buildArgs)
 {
     let jsonRepr = {}
     jsonRepr["buildargs"] = buildArgs
+
     let xhr = new XMLHttpRequest();
     xhr.open("POST", theUrl, true);
-
     xhr.setRequestHeader('Content-length', '0');
-
     xhr.send(JSON.stringify(jsonRepr));
 }
 
 
-function httpPostNoContent(theUrl)
+function httpPostPrune(theUrl)
 {
     let xhr = new XMLHttpRequest();
     xhr.open("POST", theUrl, true);
-
     xhr.setRequestHeader('Content-length', '0');
     xhr.send('');
-
 
     xhr.onreadystatechange = function() {
         if (xhr.readyState == 4) {
@@ -55,12 +52,12 @@ function httpPostNoContent(theUrl)
 }
 
 function updateTerminal() {
+
     let xhr = new XMLHttpRequest();
     let theUrl = 'http://localhost:8090/terminal';
     xhr.open("POST", theUrl, true);
-
     xhr.setRequestHeader('Content-length', '0');
-
+  ;
     xhr.onreadystatechange = function() {
         if (xhr.readyState == 4) {
             if (xhr.status == 200) {
@@ -70,8 +67,7 @@ function updateTerminal() {
             }
         }
     }
-    xhr.send('');
-
+    xhr.send('')
 }
 
 setInterval(function() {
@@ -82,16 +78,14 @@ function clicked() {
 }
 
 function build_clicked(id, buildargs) {
-    if (id === 'build') {
         httpPostBuild('http://localhost:8090/build', buildargs);
-    }
 }
 
-function run_clicked(id, otelservicename,
+function run_clicked(id,
+                     otelservicename,
                      oteltracesexporter,
                      otelexporterotlpendpoint,
-                     otelexporterzipkinendpoint
-) {
+                     otelexporterzipkinendpoint) {
     let jsonRepr = {}
     jsonRepr["otelservicename"] = otelservicename
     jsonRepr["oteltracesexporter"] = oteltracesexporter
@@ -105,18 +99,16 @@ function run_clicked(id, otelservicename,
     xhr.send(JSON.stringify(jsonRepr));
 }
 
-function button_clicked(id, entrypoint) {
+function inject_clicked(entrypoint) {
     let funcSet = []
     let checkboxes = document.querySelectorAll('input[type=checkbox]:checked')
     for (let i = 0; i < checkboxes.length; i++) {
         funcSet.push(checkboxes[i].id)
     }
-    if (id === 'inject') {
-        httpPost('http://localhost:8090/inject', entrypoint, funcSet);
-    }
-    if (id === 'prune') {
-        httpPostNoContent('http://localhost:8090/prune');
-    }
+    httpPostInject('http://localhost:8090/inject', entrypoint, funcSet);
+}
+function prune_clicked() {
+    httpPostPrune('http://localhost:8090/prune');
 }
 
 </script>
