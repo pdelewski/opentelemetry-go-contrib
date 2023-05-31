@@ -47,16 +47,19 @@ const LoadMode packages.LoadMode = packages.NeedName |
 	packages.NeedTypesInfo |
 	packages.NeedFiles
 
-func getPkgs(projectPath string, packagePattern string, fset *token.FileSet, instrgenLog *bufio.Writer) ([]*packages.Package, error) {
-	cfg := &packages.Config{Fset: fset, Mode: LoadMode, Dir: projectPath}
-	pkgs, err := packages.Load(cfg, packagePattern)
+func getPkgs(projectPaths []string, packagePattern string, fset *token.FileSet, instrgenLog *bufio.Writer) ([]*packages.Package, error) {
 	var packageSet []*packages.Package
-	if err != nil {
-		return nil, err
-	}
-	for _, pkg := range pkgs {
-		fmt.Fprintln(instrgenLog, "\t", pkg)
-		packageSet = append(packageSet, pkg)
+	for _, projectPath := range projectPaths {
+		cfg := &packages.Config{Fset: fset, Mode: LoadMode, Dir: projectPath}
+		pkgs, err := packages.Load(cfg, packagePattern)
+
+		if err != nil {
+			return nil, err
+		}
+		for _, pkg := range pkgs {
+			fmt.Fprintln(instrgenLog, "\t", pkg)
+			packageSet = append(packageSet, pkg)
+		}
 	}
 	return packageSet, nil
 }
@@ -66,7 +69,7 @@ func getPkgs(projectPath string, packagePattern string, fset *token.FileSet, ins
 // passed as functionLabel paramaterer.
 func FindRootFunctions(projectPaths []string, packagePattern string, functionLabel string, instrgenLog *bufio.Writer) []FuncDescriptor {
 	fset := token.NewFileSet()
-	pkgs, _ := getPkgs(projectPaths[0], packagePattern, fset, instrgenLog)
+	pkgs, _ := getPkgs(projectPaths, packagePattern, fset, instrgenLog)
 	var currentFun FuncDescriptor
 	var rootFunctions []FuncDescriptor
 	for _, pkg := range pkgs {
@@ -266,7 +269,7 @@ func BuildCallGraph(
 	funcDecls map[FuncDescriptor]bool,
 	interfaces map[string]bool, instrgenLog *bufio.Writer) map[FuncDescriptor][]FuncDescriptor {
 	fset := token.NewFileSet()
-	pkgs, _ := getPkgs(projectPaths[0], packagePattern, fset, instrgenLog)
+	pkgs, _ := getPkgs(projectPaths, packagePattern, fset, instrgenLog)
 	fmt.Fprint(instrgenLog, "BuildCallGraph")
 	currentFun := FuncDescriptor{"nil", "", false}
 	backwardCallGraph := make(map[FuncDescriptor][]FuncDescriptor)
@@ -328,7 +331,7 @@ func BuildCallGraph(
 // FindFuncDecls looks for all function declarations.
 func FindFuncDecls(projectPaths []string, packagePattern string, interfaces map[string]bool, instrgenLog *bufio.Writer) map[FuncDescriptor]bool {
 	fset := token.NewFileSet()
-	pkgs, _ := getPkgs(projectPaths[0], packagePattern, fset, instrgenLog)
+	pkgs, _ := getPkgs(projectPaths, packagePattern, fset, instrgenLog)
 	fmt.Fprintln(instrgenLog, "FindFuncDecls")
 	funcDecls := make(map[FuncDescriptor]bool)
 	for _, pkg := range pkgs {
@@ -355,7 +358,7 @@ func FindFuncDecls(projectPaths []string, packagePattern string, interfaces map[
 // FindInterfaces looks for all interfaces.
 func FindInterfaces(projectPaths []string, packagePattern string, instrgenLog *bufio.Writer) map[string]bool {
 	fset := token.NewFileSet()
-	pkgs, _ := getPkgs(projectPaths[0], packagePattern, fset, instrgenLog)
+	pkgs, _ := getPkgs(projectPaths, packagePattern, fset, instrgenLog)
 	fmt.Fprintln(instrgenLog, "FindInterfaces")
 	interaceTable := make(map[string]bool)
 	for _, pkg := range pkgs {
