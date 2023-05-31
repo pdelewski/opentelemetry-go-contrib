@@ -111,6 +111,20 @@ function prune_clicked() {
     httpPostPrune('http://localhost:8090/prune');
 }
 
+function selectall_clicked(source) {
+    let checkboxes = document.getElementsByName('funcselector');
+    for(let i=0, n=checkboxes.length;i<n;i++) {
+        checkboxes[i].checked = true;
+    }
+}
+
+function unselectall_clicked() {
+    let checkboxes = document.getElementsByName('funcselector');
+    for(let i=0, n=checkboxes.length;i<n;i++) {
+        checkboxes[i].checked = false;
+    }
+}
+
 </script>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">

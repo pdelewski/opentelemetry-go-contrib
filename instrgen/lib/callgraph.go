@@ -418,8 +418,11 @@ func genTableEpilogue(out *os.File) {
 
 	out.WriteString("\n<div class=\"right\">")
 	out.WriteString("\n<h1>Toolbox</h1>")
-	out.WriteString("\n&nbsp;&nbsp;<button id=\"inject\" type=\"button\" class=\"btn\" onclick=\"button_clicked(this.id, entrypoint.value)\">Inject</button><br><br>")
-	out.WriteString("\n&nbsp;&nbsp;<button id=\"prune\" type=\"button\" class=\"btn\" onclick=\"button_clicked(this.id, entrypoint.value)\">Prune</button><br><br>")
+	out.WriteString("\n&nbsp;&nbsp;<button id=\"selectall\" type=\"button\" class=\"btn\" onclick=\"selectall_clicked()\">Select All</button><br><br>")
+	out.WriteString("\n&nbsp;&nbsp;<button id=\"unselectall\" type=\"button\" class=\"btn\" onclick=\"unselectall_clicked()\">Unselect All</button><br><br>")
+
+	out.WriteString("\n&nbsp;&nbsp;<button id=\"inject\" type=\"button\" class=\"btn\" onclick=\"inject_clicked(entrypoint.value)\">Inject</button><br><br>")
+	out.WriteString("\n&nbsp;&nbsp;<button id=\"prune\" type=\"button\" class=\"btn\" onclick=\"prune_clicked()\">Prune</button><br><br>")
 	out.WriteString("\n&nbsp;&nbsp;<label for=\"buildargslabel\">Build cmd:</label>")
 	out.WriteString("\n&nbsp;<input type=\"text\" id=\"buildargs\" class=\"input\" name=\"Build cmd\" value=\"go build .\" required size=\"40\">")
 	out.WriteString("\n&nbsp;<button id=\"build\" type=\"button\" class=\"btn\" onclick=\"build_clicked(this.id, buildargs.value)\">Build</button><br><br>")
@@ -481,7 +484,7 @@ func GenerateCfgHelper(
 	for i := 0; i < depth-1; i++ {
 		out.WriteString("&nbsp;&nbsp;")
 	}
-	out.WriteString("\n    <input type=\"checkbox\" id=\"" + current.TypeHash() + "\"" + " onchange=\"clicked()\" />")
+	out.WriteString("\n    <input type=\"checkbox\" id=\"" + current.TypeHash() + "\"" + " name=\"funcselector\" onchange=\"clicked()\" />")
 	out.WriteString(current.TypeHash())
 	out.WriteString("\n</td>")
 	out.WriteString("\n</tr>")
