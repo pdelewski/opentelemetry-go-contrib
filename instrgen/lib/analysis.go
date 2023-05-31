@@ -31,7 +31,7 @@ import (
 // root functions - entry points, function declarations,
 // and so on.
 type PackageAnalysis struct {
-	ProjectPath       string
+	ProjectPaths      []string
 	PackagePattern    string
 	RootFunctions     []FuncDescriptor
 	FuncDecls         map[FuncDescriptor]bool
@@ -99,45 +99,47 @@ func addImports(imports []Import, fset *token.FileSet, fileNode *ast.File) {
 // Execute function, main entry point to analysis process.
 func (analysis *PackageAnalysis) Execute(pass FileAnalysisPass, fileSuffix string) ([]*ast.File, error) {
 	fset := token.NewFileSet()
-	cfg := &packages.Config{Fset: fset, Mode: LoadMode, Dir: analysis.ProjectPath}
-	pkgs, err := packages.Load(cfg, analysis.PackagePattern)
-	if err != nil {
-		return nil, err
-	}
 	var fileNodeSet []*ast.File
-	for _, pkg := range pkgs {
-		fmt.Fprintln(analysis.InstrgenLog, "\t", pkg)
-		// fileNode represents a translationUnit
-		var fileNode *ast.File
-		for _, fileNode = range pkg.Syntax {
-			fmt.Fprintln(analysis.InstrgenLog, "\t\t", fset.File(fileNode.Pos()).Name())
-			var out *os.File
-			out, err = createFile(fset.File(fileNode.Pos()).Name() + fileSuffix)
-			if err != nil {
-				return nil, err
-			}
-			if len(analysis.RootFunctions) == 0 {
+	for _, projectPath := range analysis.ProjectPaths {
+		cfg := &packages.Config{Fset: fset, Mode: LoadMode, Dir: projectPath}
+		pkgs, err := packages.Load(cfg, analysis.PackagePattern)
+		if err != nil {
+			return nil, err
+		}
+		for _, pkg := range pkgs {
+			fmt.Fprintln(analysis.InstrgenLog, "\t", pkg)
+			// fileNode represents a translationUnit
+			var fileNode *ast.File
+			for _, fileNode = range pkg.Syntax {
+				fmt.Fprintln(analysis.InstrgenLog, "\t\t", fset.File(fileNode.Pos()).Name())
+				var out *os.File
+				out, err = createFile(fset.File(fileNode.Pos()).Name() + fileSuffix)
+				if err != nil {
+					return nil, err
+				}
+				if len(analysis.RootFunctions) == 0 {
+					e := printer.Fprint(out, fset, fileNode)
+					if e != nil {
+						return nil, e
+					}
+					continue
+				}
+				imports := pass.Execute(fileNode, analysis, pkg, pkgs)
+				addImports(imports, fset, fileNode)
 				e := printer.Fprint(out, fset, fileNode)
 				if e != nil {
 					return nil, e
 				}
-				continue
-			}
-			imports := pass.Execute(fileNode, analysis, pkg, pkgs)
-			addImports(imports, fset, fileNode)
-			e := printer.Fprint(out, fset, fileNode)
-			if e != nil {
-				return nil, e
-			}
-			if !analysis.Debug {
-				oldFileName := fset.File(fileNode.Pos()).Name() + fileSuffix
-				newFileName := fset.File(fileNode.Pos()).Name()
-				e = os.Rename(oldFileName, newFileName)
-				if e != nil {
-					return nil, e
+				if !analysis.Debug {
+					oldFileName := fset.File(fileNode.Pos()).Name() + fileSuffix
+					newFileName := fset.File(fileNode.Pos()).Name()
+					e = os.Rename(oldFileName, newFileName)
+					if e != nil {
+						return nil, e
+					}
 				}
+				fileNodeSet = append(fileNodeSet, fileNode)
 			}
-			fileNodeSet = append(fileNodeSet, fileNode)
 		}
 	}
 	analysis.InstrgenLog.Flush()

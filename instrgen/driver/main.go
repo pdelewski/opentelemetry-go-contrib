@@ -76,7 +76,7 @@ func makeAnalysis(projectPaths []string, packagePattern string, debug bool, inst
 		selectedFunctions[k.TypeHash()] = true
 	}
 	analysis := &alib.PackageAnalysis{
-		ProjectPath:       projectPaths[0],
+		ProjectPaths:      projectPaths,
 		PackagePattern:    packagePattern,
 		RootFunctions:     rootFunctions,
 		FuncDecls:         funcDecls,
@@ -253,7 +253,7 @@ func reqInject(projectPaths []string, packagePattern string, w http.ResponseWrit
 	}
 	fmt.Fprintln(instrgenLog, "")
 	analysis := &alib.PackageAnalysis{
-		ProjectPath:       projectPaths[0],
+		ProjectPaths:      projectPaths,
 		PackagePattern:    packagePattern,
 		RootFunctions:     rootFunctions,
 		FuncDecls:         funcDecls,
