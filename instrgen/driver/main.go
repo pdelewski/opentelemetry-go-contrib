@@ -61,10 +61,10 @@ func usage() error {
 func makeAnalysis(projectPaths []string, packagePattern string, debug bool, instrgenLog *bufio.Writer) *alib.PackageAnalysis {
 	var rootFunctions []alib.FuncDescriptor
 
-	interfaces := alib.FindInterfaces(projectPaths[0], packagePattern, instrgenLog)
-	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPaths[0], packagePattern, "AutotelEntryPoint", instrgenLog)...)
-	funcDecls := alib.FindFuncDecls(projectPaths[0], packagePattern, interfaces, instrgenLog)
-	backwardCallGraph := alib.BuildCallGraph(projectPaths[0], packagePattern, funcDecls, interfaces, instrgenLog)
+	interfaces := alib.FindInterfaces(projectPaths, packagePattern, instrgenLog)
+	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPaths, packagePattern, "AutotelEntryPoint", instrgenLog)...)
+	funcDecls := alib.FindFuncDecls(projectPaths, packagePattern, interfaces, instrgenLog)
+	backwardCallGraph := alib.BuildCallGraph(projectPaths, packagePattern, funcDecls, interfaces, instrgenLog)
 	fmt.Fprintln(instrgenLog, "\n\tchild parent")
 	for k, v := range backwardCallGraph {
 		fmt.Fprint(instrgenLog, "\n\t", k)
@@ -94,19 +94,19 @@ func Prune(projectPaths []string, packagePattern string, debug bool, instrgenLog
 	return analysis.Execute(&alib.OtelPruner{}, otelPrunerPassSuffix)
 }
 
-func makeCallGraph(projectPath string, packagePattern string, instrgenLog *bufio.Writer) map[alib.FuncDescriptor][]alib.FuncDescriptor {
+func makeCallGraph(projectPaths []string, packagePattern string, instrgenLog *bufio.Writer) map[alib.FuncDescriptor][]alib.FuncDescriptor {
 	var funcDecls map[alib.FuncDescriptor]bool
 	var backwardCallGraph map[alib.FuncDescriptor][]alib.FuncDescriptor
 
-	interfaces := alib.FindInterfaces(projectPath, packagePattern, instrgenLog)
-	funcDecls = alib.FindFuncDecls(projectPath, packagePattern, interfaces, instrgenLog)
-	backwardCallGraph = alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces, instrgenLog)
+	interfaces := alib.FindInterfaces(projectPaths, packagePattern, instrgenLog)
+	funcDecls = alib.FindFuncDecls(projectPaths, packagePattern, interfaces, instrgenLog)
+	backwardCallGraph = alib.BuildCallGraph(projectPaths, packagePattern, funcDecls, interfaces, instrgenLog)
 	return backwardCallGraph
 }
 
-func makeRootFunctions(projectPath string, packagePattern string, instrgenLog *bufio.Writer) []alib.FuncDescriptor {
+func makeRootFunctions(projectPaths []string, packagePattern string, instrgenLog *bufio.Writer) []alib.FuncDescriptor {
 	var rootFunctions []alib.FuncDescriptor
-	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint", instrgenLog)...)
+	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPaths, packagePattern, "AutotelEntryPoint", instrgenLog)...)
 	return rootFunctions
 }
 
@@ -175,11 +175,11 @@ func executeCommand(command string, projectPaths []string, packagePattern string
 		fmt.Println("\tinstrumentation done")
 		return nil
 	case "--dumpcfg":
-		backwardCallGraph := makeCallGraph(projectPaths[0], packagePattern, instrgenLog)
+		backwardCallGraph := makeCallGraph(projectPaths, packagePattern, instrgenLog)
 		dumpCallGraph(backwardCallGraph, instrgenLog)
 		return nil
 	case "--rootfunctions":
-		rootFunctions := makeRootFunctions(projectPaths[0], packagePattern, instrgenLog)
+		rootFunctions := makeRootFunctions(projectPaths, packagePattern, instrgenLog)
 		dumpRootFunctions(rootFunctions, instrgenLog)
 		return nil
 	case "--prune":
@@ -190,7 +190,7 @@ func executeCommand(command string, projectPaths []string, packagePattern string
 		fmt.Println("\tprune done")
 		return nil
 	case "--generatecfg":
-		backwardCallGraph := makeCallGraph(projectPaths[0], packagePattern, instrgenLog)
+		backwardCallGraph := makeCallGraph(projectPaths, packagePattern, instrgenLog)
 		alib.GenerateForwardCfg(backwardCallGraph, "cfg")
 		return nil
 	case "--server":
@@ -242,10 +242,10 @@ func reqInject(projectPaths []string, packagePattern string, w http.ResponseWrit
 		log.Fatal(err)
 	}
 	var rootFunctions []alib.FuncDescriptor
-	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPaths[0], packagePattern, "AutotelEntryPoint", instrgenLog)...)
-	interfaces := alib.FindInterfaces(projectPaths[0], packagePattern, instrgenLog)
-	funcDecls := alib.FindFuncDecls(projectPaths[0], packagePattern, interfaces, instrgenLog)
-	backwardCallGraph := alib.BuildCallGraph(projectPaths[0], packagePattern, funcDecls, interfaces, instrgenLog)
+	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPaths, packagePattern, "AutotelEntryPoint", instrgenLog)...)
+	interfaces := alib.FindInterfaces(projectPaths, packagePattern, instrgenLog)
+	funcDecls := alib.FindFuncDecls(projectPaths, packagePattern, interfaces, instrgenLog)
+	backwardCallGraph := alib.BuildCallGraph(projectPaths, packagePattern, funcDecls, interfaces, instrgenLog)
 	fmt.Fprintln(instrgenLog, "\n\tchild parent")
 	for k, v := range backwardCallGraph {
 		fmt.Fprint(instrgenLog, "\n\t", k)
@@ -269,10 +269,10 @@ func reqInject(projectPaths []string, packagePattern string, w http.ResponseWrit
 	{
 		// reload
 		var rootFunctions []alib.FuncDescriptor
-		rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPaths[0], packagePattern, "AutotelEntryPoint", instrgenLog)...)
-		interfaces := alib.FindInterfaces(projectPaths[0], packagePattern, instrgenLog)
-		funcDecls := alib.FindFuncDecls(projectPaths[0], packagePattern, interfaces, instrgenLog)
-		backwardCallGraph := alib.BuildCallGraph(projectPaths[0], packagePattern, funcDecls, interfaces, instrgenLog)
+		rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPaths, packagePattern, "AutotelEntryPoint", instrgenLog)...)
+		interfaces := alib.FindInterfaces(projectPaths, packagePattern, instrgenLog)
+		funcDecls := alib.FindFuncDecls(projectPaths, packagePattern, interfaces, instrgenLog)
+		backwardCallGraph := alib.BuildCallGraph(projectPaths, packagePattern, funcDecls, interfaces, instrgenLog)
 		alib.GenerateForwardCfg(backwardCallGraph, "./static/index.html")
 		w.WriteHeader(200)
 	}
@@ -288,10 +288,10 @@ func reqPrune(projectPaths []string, packagePattern string, w http.ResponseWrite
 	}
 	// reload
 	var rootFunctions []alib.FuncDescriptor
-	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPaths[0], packagePattern, "AutotelEntryPoint", instrgenLog)...)
-	interfaces := alib.FindInterfaces(projectPaths[0], packagePattern, instrgenLog)
-	funcDecls := alib.FindFuncDecls(projectPaths[0], packagePattern, interfaces, instrgenLog)
-	backwardCallGraph := alib.BuildCallGraph(projectPaths[0], packagePattern, funcDecls, interfaces, instrgenLog)
+	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPaths, packagePattern, "AutotelEntryPoint", instrgenLog)...)
+	interfaces := alib.FindInterfaces(projectPaths, packagePattern, instrgenLog)
+	funcDecls := alib.FindFuncDecls(projectPaths, packagePattern, interfaces, instrgenLog)
+	backwardCallGraph := alib.BuildCallGraph(projectPaths, packagePattern, funcDecls, interfaces, instrgenLog)
 
 	alib.GenerateForwardCfg(backwardCallGraph, "./static/index.html")
 
@@ -406,7 +406,7 @@ func reqTerminal(projectPaths []string, packagePattern string, w http.ResponseWr
 }
 
 func server(projectPaths []string, packagePattern string, instrgenLog *bufio.Writer) {
-	backwardCallGraph := makeCallGraph(projectPaths[0], packagePattern, instrgenLog)
+	backwardCallGraph := makeCallGraph(projectPaths, packagePattern, instrgenLog)
 	alib.GenerateForwardCfg(backwardCallGraph, "./static/index.html")
 	var fileOffset int64
 	fileOffset = 0
