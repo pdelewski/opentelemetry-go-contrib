@@ -34,6 +34,11 @@ type UiInject struct {
 	Funcset    []string
 }
 
+type UIPrune struct {
+	Entrypoint string
+	Funcset    []string
+}
+
 type UiBuild struct {
 	BuildArgs string
 }
@@ -234,15 +239,39 @@ func reqInject(projectPaths []string, packagePattern string, w http.ResponseWrit
 		log.Fatal("lack of entry point function")
 		return
 	}
-	rootFuncs := make([]alib.FuncDescriptor, 1)
-	rootFuncs[0] = alib.FuncDescriptor{entryPointFunSignature[0], entryPointFunSignature[1], false}
-
-	_, err = Prune(projectPaths, packagePattern, false, instrgenLog)
-	if err != nil {
-		log.Fatal(err)
+	rootFunctions := make([]alib.FuncDescriptor, 1)
+	rootFunctions[0] = alib.FuncDescriptor{entryPointFunSignature[0], entryPointFunSignature[1], false}
+	// prune
+	{
+		interfaces := alib.FindInterfaces(projectPaths, packagePattern, instrgenLog)
+		funcDecls := alib.FindFuncDecls(projectPaths, packagePattern, interfaces, instrgenLog)
+		backwardCallGraph := alib.BuildCallGraph(projectPaths, packagePattern, funcDecls, interfaces, instrgenLog)
+		fmt.Fprintln(instrgenLog, "\n\tchild parent")
+		for k, v := range backwardCallGraph {
+			fmt.Fprint(instrgenLog, "\n\t", k)
+			fmt.Fprint(instrgenLog, " ", v)
+		}
+		fmt.Fprintln(instrgenLog, "")
+		selectedFunctions := make(map[string]bool)
+		for k, _ := range funcDecls {
+			selectedFunctions[k.TypeHash()] = true
+		}
+		analysis := &alib.PackageAnalysis{
+			ProjectPaths:      projectPaths,
+			PackagePattern:    packagePattern,
+			RootFunctions:     rootFunctions,
+			FuncDecls:         funcDecls,
+			Callgraph:         backwardCallGraph,
+			Interfaces:        interfaces,
+			SelectedFunctions: selectedFunctions,
+			InstrgenLog:       instrgenLog,
+			Debug:             false}
+		_, err = analysis.Execute(&alib.OtelPruner{}, otelPrunerPassSuffix)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
-	var rootFunctions []alib.FuncDescriptor
-	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPaths, packagePattern, "AutotelEntryPoint", instrgenLog)...)
+
 	interfaces := alib.FindInterfaces(projectPaths, packagePattern, instrgenLog)
 	funcDecls := alib.FindFuncDecls(projectPaths, packagePattern, interfaces, instrgenLog)
 	backwardCallGraph := alib.BuildCallGraph(projectPaths, packagePattern, funcDecls, interfaces, instrgenLog)
@@ -282,13 +311,63 @@ func reqInject(projectPaths []string, packagePattern string, w http.ResponseWrit
 
 func reqPrune(projectPaths []string, packagePattern string, w http.ResponseWriter, r *http.Request, instrgenLog *bufio.Writer) {
 	fmt.Fprintln(instrgenLog, "prune")
-	err := executeCommand("--prune", projectPaths, packagePattern, instrgenLog)
-	if err != nil {
-		log.Fatal(err)
+	var bodyBytes []byte
+	var err error
+
+	if r.Body != nil {
+		bodyBytes, err = io.ReadAll(r.Body)
+		if err != nil {
+			fmt.Fprintf(instrgenLog, "Body reading error: %v", err)
+			return
+		}
+		defer r.Body.Close()
+	}
+	var uiReq UiInject
+	json.Unmarshal([]byte(bodyBytes), &uiReq)
+	selectedFunctions := make(map[string]bool)
+	for _, selectedFun := range uiReq.Funcset {
+		selectedFunctions[selectedFun] = true
+	}
+	fmt.Fprintln(instrgenLog, "JsonBody : ", uiReq)
+	entryPointFunSignature := strings.Split(uiReq.Entrypoint, ":")
+	if len(entryPointFunSignature) < 1 {
+		log.Fatal("lack of entry point function")
+		return
+	}
+	rootFunctions := make([]alib.FuncDescriptor, 1)
+	rootFunctions[0] = alib.FuncDescriptor{entryPointFunSignature[0], entryPointFunSignature[1], false}
+
+	// prune
+	{
+		interfaces := alib.FindInterfaces(projectPaths, packagePattern, instrgenLog)
+		funcDecls := alib.FindFuncDecls(projectPaths, packagePattern, interfaces, instrgenLog)
+		backwardCallGraph := alib.BuildCallGraph(projectPaths, packagePattern, funcDecls, interfaces, instrgenLog)
+		fmt.Fprintln(instrgenLog, "\n\tchild parent")
+		for k, v := range backwardCallGraph {
+			fmt.Fprint(instrgenLog, "\n\t", k)
+			fmt.Fprint(instrgenLog, " ", v)
+		}
+		fmt.Fprintln(instrgenLog, "")
+		selectedFunctions := make(map[string]bool)
+		for k, _ := range funcDecls {
+			selectedFunctions[k.TypeHash()] = true
+		}
+		analysis := &alib.PackageAnalysis{
+			ProjectPaths:      projectPaths,
+			PackagePattern:    packagePattern,
+			RootFunctions:     rootFunctions,
+			FuncDecls:         funcDecls,
+			Callgraph:         backwardCallGraph,
+			Interfaces:        interfaces,
+			SelectedFunctions: selectedFunctions,
+			InstrgenLog:       instrgenLog,
+			Debug:             false}
+		_, err = analysis.Execute(&alib.OtelPruner{}, otelPrunerPassSuffix)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	// reload
-	var rootFunctions []alib.FuncDescriptor
-	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPaths, packagePattern, "AutotelEntryPoint", instrgenLog)...)
 	interfaces := alib.FindInterfaces(projectPaths, packagePattern, instrgenLog)
 	funcDecls := alib.FindFuncDecls(projectPaths, packagePattern, interfaces, instrgenLog)
 	backwardCallGraph := alib.BuildCallGraph(projectPaths, packagePattern, funcDecls, interfaces, instrgenLog)

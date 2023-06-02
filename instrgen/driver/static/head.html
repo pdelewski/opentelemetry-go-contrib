@@ -35,12 +35,20 @@ function httpPostBuild(theUrl, buildArgs)
 }
 
 
-function httpPostPrune(theUrl)
+function httpPostPrune(theUrl, entrypoint, funcSet)
 {
+    if (funcSet.includes(entrypoint) === false) {
+        alert("Unknown entry point, entry point needs to be selected element of callgraph")
+        return
+    }
+    let jsonRepr = {}
+    jsonRepr["entrypoint"] = entrypoint
+    jsonRepr["funcset"] = funcSet
+
     let xhr = new XMLHttpRequest();
     xhr.open("POST", theUrl, true);
     xhr.setRequestHeader('Content-length', '0');
-    xhr.send('');
+    xhr.send(JSON.stringify(jsonRepr));
 
     xhr.onreadystatechange = function() {
         if (xhr.readyState == 4) {
@@ -107,8 +115,13 @@ function inject_clicked(entrypoint) {
     }
     httpPostInject('http://localhost:8090/inject', entrypoint, funcSet);
 }
-function prune_clicked() {
-    httpPostPrune('http://localhost:8090/prune');
+function prune_clicked(entrypoint) {
+    let funcSet = []
+    let checkboxes = document.getElementsByName('funcselector');
+    for (let i = 0; i < checkboxes.length; i++) {
+        funcSet.push(checkboxes[i].id)
+    }
+    httpPostPrune('http://localhost:8090/prune', entrypoint, funcSet);
 }
 
 function selectall_clicked(source) {
