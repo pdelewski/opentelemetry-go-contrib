@@ -529,7 +529,7 @@ func main() {
 	projectPath := os.Args[2]
 	projectPaths := strings.Split(projectPath, ",")
 	err = executeCommand(os.Args[1], projectPaths, os.Args[3], instrgenWriter)
-
+	instrgenWriter.Flush()
 	if err != nil {
 		log.Fatal(err)
 	}
