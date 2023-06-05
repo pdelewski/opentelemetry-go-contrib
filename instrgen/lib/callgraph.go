@@ -482,6 +482,12 @@ func GenerateCfgHelper(
 	out *os.File,
 	visited map[FuncDescriptor]bool, depth int) {
 
+	exists := visited[current]
+	if exists {
+		return
+	}
+	visited[current] = true
+
 	out.WriteString("\n<tr>")
 	out.WriteString("\n<td>")
 	for i := 0; i < depth-1; i++ {
@@ -495,16 +501,12 @@ func GenerateCfgHelper(
 	value, ok := callGraph[current]
 	if ok {
 		for _, child := range value {
-			exists := visited[child]
-			if exists {
-				continue
-			}
-			visited[child] = true
 			depth = depth + 1
 			GenerateCfgHelper(callGraph, child, out, visited, depth)
 			depth = depth - 1
 		}
 	}
+	delete(visited, current)
 }
 
 func ReverseCfg(backwardCallgraph map[FuncDescriptor][]FuncDescriptor) map[FuncDescriptor][]FuncDescriptor {
