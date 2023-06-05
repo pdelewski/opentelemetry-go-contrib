@@ -63,11 +63,14 @@ func usage() error {
 	return nil
 }
 
-func makeAnalysis(projectPaths []string, packagePattern string, debug bool, instrgenLog *bufio.Writer) *alib.PackageAnalysis {
+func makeAnalysis(projectPaths []string,
+	packagePattern string,
+	debug bool,
+	instrgenLog *bufio.Writer) *alib.PackageAnalysis {
 	var rootFunctions []alib.FuncDescriptor
 
-	interfaces := alib.FindInterfaces(projectPaths, packagePattern, instrgenLog)
 	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPaths, packagePattern, "AutotelEntryPoint", instrgenLog)...)
+	interfaces := alib.FindInterfaces(projectPaths, packagePattern, instrgenLog)
 	funcDecls := alib.FindFuncDecls(projectPaths, packagePattern, interfaces, instrgenLog)
 	backwardCallGraph := alib.BuildCallGraph(projectPaths, packagePattern, funcDecls, interfaces, instrgenLog)
 	fmt.Fprintln(instrgenLog, "\n\tchild parent")

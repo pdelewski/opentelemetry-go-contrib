@@ -51,12 +51,17 @@ func (pass *ContextPropagationPass) Execute(
 	// when callexpr is inside var decl
 	// instead of functiondecl
 	currentFun := FuncDescriptor{}
+	reverserCfg := ReverseCfg(analysis.Callgraph)
+	_ = reverserCfg
 	emitEmptyContext := func(callExpr *ast.CallExpr, fun FuncDescriptor, ctxArg *ast.Ident) {
 		addImports = true
 		if currentFun != (FuncDescriptor{}) {
 			visited := map[FuncDescriptor]bool{}
 			if isPath(analysis.Callgraph, currentFun, analysis.RootFunctions[0], visited) {
-				callExpr.Args = append([]ast.Expr{ctxArg}, callExpr.Args...)
+				_, exists := analysis.SelectedFunctions[fun.TypeHash()]
+				if exists {
+					callExpr.Args = append([]ast.Expr{ctxArg}, callExpr.Args...)
+				}
 			} else {
 				contextTodo := &ast.CallExpr{
 					Fun: &ast.SelectorExpr{
@@ -104,8 +109,11 @@ func (pass *ContextPropagationPass) Execute(
 			if found {
 				visited := map[FuncDescriptor]bool{}
 				if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
-					fmt.Fprintln(analysis.InstrgenLog, "\t\t\tContextPropagation FuncCall:", funId, pkg.TypesInfo.Uses[ident].Type().String())
-					emitEmptyContext(callExpr, fun, ctxArg)
+					_, exists := analysis.SelectedFunctions[fun.TypeHash()]
+					if exists {
+						fmt.Fprintln(analysis.InstrgenLog, "\t\t\tContextPropagation FuncCall:", funId, pkg.TypesInfo.Uses[ident].Type().String())
+						emitEmptyContext(callExpr, fun, ctxArg)
+					}
 				}
 			}
 		}
@@ -150,10 +158,13 @@ func (pass *ContextPropagationPass) Execute(
 			visited := map[FuncDescriptor]bool{}
 
 			if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
-				fmt.Fprintln(analysis.InstrgenLog, "\t\t\tContextPropagation FuncDecl:", funId,
-					pkg.TypesInfo.Defs[xNode.Name].Type().String())
-				addImports = true
-				xNode.Type.Params.List = append([]*ast.Field{ctxField}, xNode.Type.Params.List...)
+				_, exists := analysis.SelectedFunctions[fun.TypeHash()]
+				if exists {
+					fmt.Fprintln(analysis.InstrgenLog, "\t\t\tContextPropagation FuncDecl:", funId,
+						pkg.TypesInfo.Defs[xNode.Name].Type().String())
+					addImports = true
+					xNode.Type.Params.List = append([]*ast.Field{ctxField}, xNode.Type.Params.List...)
+				}
 			}
 		case *ast.CallExpr:
 			if ident, ok := xNode.Fun.(*ast.Ident); ok {
@@ -194,9 +205,12 @@ func (pass *ContextPropagationPass) Execute(
 					DeclType:        pkg.TypesInfo.Defs[method.Names[0]].Type().String(),
 					CustomInjection: false}
 				if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
-					fmt.Fprintln(analysis.InstrgenLog, "\t\t\tContext Propagation InterfaceType", fun.Id, fun.DeclType)
-					addImports = true
-					funcType.Params.List = append([]*ast.Field{ctxField}, funcType.Params.List...)
+					_, exists := analysis.SelectedFunctions[fun.TypeHash()]
+					if exists {
+						fmt.Fprintln(analysis.InstrgenLog, "\t\t\tContext Propagation InterfaceType", fun.Id, fun.DeclType)
+						addImports = true
+						funcType.Params.List = append([]*ast.Field{ctxField}, funcType.Params.List...)
+					}
 				}
 			}
 		}
