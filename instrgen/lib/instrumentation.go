@@ -288,6 +288,7 @@ func (pass *InstrumentationPass) Execute(
 	var imports []Import
 	addImports := false
 	addContext := false
+	addRtLib := false
 	// store all function literals positions
 	// that are part of assignment statement
 	// it's used to avoid injection into literal
@@ -331,6 +332,7 @@ func (pass *InstrumentationPass) Execute(
 					x.Body.List = append(makeInitStmts(x.Name.Name), x.Body.List...)
 					addContext = true
 					addImports = true
+					addRtLib = true
 				}
 			}
 		case *ast.AssignStmt:
@@ -379,6 +381,8 @@ func (pass *InstrumentationPass) Execute(
 	}
 	if addImports {
 		imports = append(imports, Import{"__atel_otel", "go.opentelemetry.io/otel", Add})
+	}
+	if addRtLib {
 		imports = append(imports, Import{"", "go.opentelemetry.io/contrib/instrgen/rtlib", Add})
 	}
 	return imports
