@@ -17,6 +17,7 @@ package lib // import "go.opentelemetry.io/contrib/instrgen/lib"
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -58,10 +59,7 @@ func (pass *ContextPropagationPass) Execute(
 		if currentFun != (FuncDescriptor{}) {
 			visited := map[FuncDescriptor]bool{}
 			if isPath(analysis.Callgraph, currentFun, analysis.RootFunctions[0], visited) {
-				_, exists := analysis.SelectedFunctions[fun.TypeHash()]
-				if exists {
-					callExpr.Args = append([]ast.Expr{ctxArg}, callExpr.Args...)
-				}
+				callExpr.Args = append([]ast.Expr{ctxArg}, callExpr.Args...)
 			} else {
 				contextTodo := &ast.CallExpr{
 					Fun: &ast.SelectorExpr{
@@ -109,11 +107,8 @@ func (pass *ContextPropagationPass) Execute(
 			if found {
 				visited := map[FuncDescriptor]bool{}
 				if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
-					_, exists := analysis.SelectedFunctions[fun.TypeHash()]
-					if exists {
-						fmt.Fprintln(analysis.InstrgenLog, "\t\t\tContextPropagation FuncCall:", funId, pkg.TypesInfo.Uses[ident].Type().String())
-						emitEmptyContext(callExpr, fun, ctxArg)
-					}
+					fmt.Fprintln(analysis.InstrgenLog, "\t\t\tContextPropagation FuncCall:", funId, pkg.TypesInfo.Uses[ident].Type().String())
+					emitEmptyContext(callExpr, fun, ctxArg)
 				}
 			}
 		}
@@ -158,12 +153,40 @@ func (pass *ContextPropagationPass) Execute(
 			visited := map[FuncDescriptor]bool{}
 
 			if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
+				fmt.Fprintln(analysis.InstrgenLog, "\t\t\tContextPropagation FuncDecl:", funId,
+					pkg.TypesInfo.Defs[xNode.Name].Type().String())
+				addImports = true
+				xNode.Type.Params.List = append([]*ast.Field{ctxField}, xNode.Type.Params.List...)
 				_, exists := analysis.SelectedFunctions[fun.TypeHash()]
-				if exists {
-					fmt.Fprintln(analysis.InstrgenLog, "\t\t\tContextPropagation FuncDecl:", funId,
-						pkg.TypesInfo.Defs[xNode.Name].Type().String())
-					addImports = true
-					xNode.Type.Params.List = append([]*ast.Field{ctxField}, xNode.Type.Params.List...)
+				if !exists {
+					xNode.Body.List = append([]ast.Stmt{
+						&ast.AssignStmt{
+							Lhs: []ast.Expr{
+								&ast.Ident{
+									Name: "__atel_child_tracing_ctx",
+								},
+							},
+							Tok: token.DEFINE,
+							Rhs: []ast.Expr{
+								&ast.Ident{
+									Name: "__atel_tracing_ctx",
+								},
+							},
+						},
+						&ast.AssignStmt{
+							Lhs: []ast.Expr{
+								&ast.Ident{
+									Name: "_",
+								},
+							},
+							Tok: token.ASSIGN,
+							Rhs: []ast.Expr{
+								&ast.Ident{
+									Name: "__atel_child_tracing_ctx",
+								},
+							},
+						},
+					}, xNode.Body.List...)
 				}
 			}
 		case *ast.CallExpr:
@@ -205,12 +228,9 @@ func (pass *ContextPropagationPass) Execute(
 					DeclType:        pkg.TypesInfo.Defs[method.Names[0]].Type().String(),
 					CustomInjection: false}
 				if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
-					_, exists := analysis.SelectedFunctions[fun.TypeHash()]
-					if exists {
-						fmt.Fprintln(analysis.InstrgenLog, "\t\t\tContext Propagation InterfaceType", fun.Id, fun.DeclType)
-						addImports = true
-						funcType.Params.List = append([]*ast.Field{ctxField}, funcType.Params.List...)
-					}
+					fmt.Fprintln(analysis.InstrgenLog, "\t\t\tContext Propagation InterfaceType", fun.Id, fun.DeclType)
+					addImports = true
+					funcType.Params.List = append([]*ast.Field{ctxField}, funcType.Params.List...)
 				}
 			}
 		}
