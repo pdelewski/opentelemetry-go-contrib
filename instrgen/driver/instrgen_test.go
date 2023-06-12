@@ -17,6 +17,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"os"
@@ -38,7 +39,9 @@ var testcases = map[string]string{
 var failures []string
 
 func inject(t *testing.T, root string, packagePattern string) {
-	err := executeCommand("--inject-dump-ir", root, packagePattern)
+	instrgenWriter := bufio.NewWriter(os.Stdout)
+	pkgs := []string{root}
+	err := executeCommand("--inject-dump-ir", pkgs, packagePattern, instrgenWriter)
 	require.NoError(t, err)
 }
 
@@ -72,7 +75,9 @@ func Test(t *testing.T) {
 			fmt.Println("numberOfComparisons:", numOfComparisons)
 			panic("not all files were compared")
 		}
-		_, err := Prune(k, "./...", false)
+		pkgs := []string{k}
+		instrgenWriter := bufio.NewWriter(os.Stdout)
+		_, err := Prune(pkgs, "./...", false, instrgenWriter)
 		if err != nil {
 			fmt.Println("Prune failed")
 		}
@@ -83,24 +88,29 @@ func Test(t *testing.T) {
 }
 
 func TestCommands(t *testing.T) {
-	err := executeCommand("--dumpcfg", "./testdata/dummy", "./...")
+	instrgenWriter := bufio.NewWriter(os.Stdout)
+	pkgs := []string{"./testdata/dummy"}
+
+	err := executeCommand("--dumpcfg", pkgs, "./...", instrgenWriter)
 	require.NoError(t, err)
-	err = executeCommand("--rootfunctions", "./testdata/dummy", "./...")
+	err = executeCommand("--rootfunctions", pkgs, "./...", instrgenWriter)
 	require.NoError(t, err)
-	err = executeCommand("--prune", "./testdata/dummy", "./...")
+	err = executeCommand("--prune", pkgs, "./...", instrgenWriter)
 	require.NoError(t, err)
-	err = executeCommand("--inject", "./testdata/dummy", "./...")
+	err = executeCommand("--inject", pkgs, "./...", instrgenWriter)
 	require.NoError(t, err)
 	err = usage()
 	require.NoError(t, err)
 }
 
 func TestCallGraph(t *testing.T) {
-	cg := makeCallGraph("./testdata/dummy", "./...")
-	dumpCallGraph(cg)
+	instrgenWriter := bufio.NewWriter(os.Stdout)
+	pkgs := []string{"./testdata/dummy"}
+	cg := makeCallGraph(pkgs, "./...", instrgenWriter)
+	dumpCallGraph(cg, instrgenWriter)
 	assert.Equal(t, len(cg), 0, "callgraph should contain 0 elems")
-	rf := makeRootFunctions("./testdata/dummy", "./...")
-	dumpRootFunctions(rf)
+	rf := makeRootFunctions(pkgs, "./...", instrgenWriter)
+	dumpRootFunctions(rf, instrgenWriter)
 	assert.Equal(t, len(rf), 0, "rootfunctions set should be empty")
 }
 
@@ -113,6 +123,8 @@ func TestArgs(t *testing.T) {
 }
 
 func TestUnknown(t *testing.T) {
-	err := executeCommand("unknown", "a", "b")
+	instrgenWriter := bufio.NewWriter(os.Stdout)
+	pkgs := []string{"a"}
+	err := executeCommand("unknown", pkgs, "b", instrgenWriter)
 	require.Error(t, err)
 }
