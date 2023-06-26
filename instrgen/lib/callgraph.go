@@ -172,8 +172,9 @@ func GetPkgPathFromRecvInterface(pkg *packages.Package,
 					interfaceExists := interfaces[defs.Type().String()]
 					if interfaceExists {
 						pkgPath = defs.Type().String()
+						fmt.Println("##:", pkgPath)
+						break
 					}
-					break
 				}
 			}
 		}
@@ -183,11 +184,13 @@ func GetPkgPathFromRecvInterface(pkg *packages.Package,
 
 // GetPkgPathFromFunctionRecv build package path taking function receiver parameters.
 func GetPkgPathFromFunctionRecv(pkg *packages.Package,
-	pkgs []*packages.Package, funDeclNode *ast.FuncDecl, interfaces map[string]bool) string {
+	pkgs []*packages.Package, funDeclNode *ast.FuncDecl, interfaces map[string]bool, instrgenLog *bufio.Writer) string {
 	pkgPath := GetPkgPathFromRecvInterface(pkg, pkgs, funDeclNode, interfaces)
 	if len(pkgPath) != 0 {
+		fmt.Fprintln(instrgenLog, "@@@@interface")
 		return pkgPath
 	}
+	fmt.Fprintln(instrgenLog, "@@@@Method")
 	for _, v := range funDeclNode.Recv.List {
 		if len(v.Names) == 0 {
 			continue
@@ -254,10 +257,12 @@ func GetPkgNameFromDefsTable(pkg *packages.Package, ident *ast.Ident) string {
 // GetPkgPathForFunction builds package path, delegates work to
 // other helper functions defined above.
 func GetPkgPathForFunction(pkg *packages.Package,
-	pkgs []*packages.Package, funDecl *ast.FuncDecl, interfaces map[string]bool) string {
+	pkgs []*packages.Package, funDecl *ast.FuncDecl, interfaces map[string]bool, instrgenLog *bufio.Writer) string {
 	if funDecl.Recv != nil {
-		return GetPkgPathFromFunctionRecv(pkg, pkgs, funDecl, interfaces)
+		fmt.Fprintln(instrgenLog, "@@@GetPkgPathFromFunctionRecv")
+		return GetPkgPathFromFunctionRecv(pkg, pkgs, funDecl, interfaces, instrgenLog)
 	}
+	fmt.Fprintln(instrgenLog, "@@@GetPkgNameFromDefsTable")
 	return GetPkgNameFromDefsTable(pkg, funDecl.Name)
 }
 
@@ -285,7 +290,7 @@ func BuildCallGraph(
 						funId := pkgPath + "." + pkg.TypesInfo.Uses[id].Name()
 						fmt.Fprintln(instrgenLog, "\t\t\tFuncCall:", funId, pkg.TypesInfo.Uses[id].Type().String(),
 							" @called : ",
-							fset.File(node.Pos()).Name())
+							fset.File(node.Pos()).Name(), ":", fset.File(id.Pos()).Line(id.Pos()))
 						fun := FuncDescriptor{funId, pkg.TypesInfo.Uses[id].Type().String(), false}
 						if !Contains(backwardCallGraph[fun], currentFun) {
 							if funcDecls[fun] {
@@ -296,13 +301,15 @@ func BuildCallGraph(
 					if sel, ok := xNode.Fun.(*ast.SelectorExpr); ok {
 						if pkg.TypesInfo.Uses[sel.Sel] != nil {
 							pkgPath := GetPkgNameFromUsesTable(pkg, sel.Sel)
+							fmt.Fprintln(instrgenLog, "\t\t\tPkgPath #1:", pkgPath)
 							if sel.X != nil {
 								pkgPath = GetSelectorPkgPath(sel, pkg, pkgPath)
+								fmt.Fprintln(instrgenLog, "\t\t\tPkgPath #2:", pkgPath)
 							}
 							funId := pkgPath + "." + pkg.TypesInfo.Uses[sel.Sel].Name()
-							fmt.Fprintln(instrgenLog, "\t\t\tFuncCall via selector:", funId, pkg.TypesInfo.Uses[sel.Sel].Type().String(),
+							fmt.Fprintln(instrgenLog, "\t\t\tFuncCall via selector:", funId, " funcname:", pkg.TypesInfo.Uses[sel.Sel].Name(), " type:", pkg.TypesInfo.Uses[sel.Sel].Type().String(),
 								" @called : ",
-								fset.File(node.Pos()).Name())
+								fset.File(node.Pos()).Name(), ":", fset.File(sel.Pos()).Line(sel.Pos()))
 							fun := FuncDescriptor{funId, pkg.TypesInfo.Uses[sel.Sel].Type().String(), false}
 							if !Contains(backwardCallGraph[fun], currentFun) {
 								if funcDecls[fun] {
@@ -313,11 +320,11 @@ func BuildCallGraph(
 					}
 				case *ast.FuncDecl:
 					if pkg.TypesInfo.Defs[xNode.Name] != nil {
-						pkgPath := GetPkgPathForFunction(pkg, pkgs, xNode, interfaces)
+						pkgPath := GetPkgPathForFunction(pkg, pkgs, xNode, interfaces, instrgenLog)
 						funId := pkgPath + "." + pkg.TypesInfo.Defs[xNode.Name].Name()
 						funcDecls[FuncDescriptor{funId, pkg.TypesInfo.Defs[xNode.Name].Type().String(), false}] = true
 						currentFun = FuncDescriptor{funId, pkg.TypesInfo.Defs[xNode.Name].Type().String(), false}
-						fmt.Fprintln(instrgenLog, "\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[xNode.Name].Type().String())
+						fmt.Fprintln(instrgenLog, "\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[xNode.Name].Type().String(), ":", fset.File(xNode.Pos()).Line(xNode.Pos()))
 					}
 				}
 				return true
@@ -340,10 +347,10 @@ func FindFuncDecls(projectPaths []string, packagePattern string, interfaces map[
 			fmt.Fprintln(instrgenLog, "\t\t", fset.File(node.Pos()).Name())
 			ast.Inspect(node, func(n ast.Node) bool {
 				if funDeclNode, ok := n.(*ast.FuncDecl); ok {
-					pkgPath := GetPkgPathForFunction(pkg, pkgs, funDeclNode, interfaces)
+					pkgPath := GetPkgPathForFunction(pkg, pkgs, funDeclNode, interfaces, instrgenLog)
 					if pkg.TypesInfo.Defs[funDeclNode.Name] != nil {
 						funId := pkgPath + "." + pkg.TypesInfo.Defs[funDeclNode.Name].Name()
-						fmt.Fprintln(instrgenLog, "\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[funDeclNode.Name].Type().String())
+						fmt.Fprintln(instrgenLog, "\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[funDeclNode.Name].Type().String(), ":", fset.File(funDeclNode.Pos()).Line(funDeclNode.Pos()))
 						funcDecls[FuncDescriptor{funId, pkg.TypesInfo.Defs[funDeclNode.Name].Type().String(), false}] = true
 					}
 				}
@@ -459,8 +466,13 @@ func GenerateForwardCfg(backwardCallgraph map[FuncDescriptor][]FuncDescriptor, p
 	}
 	rootFunctions := InferRootFunctionsFromGraph(backwardCallgraph)
 	head, _ := os.ReadFile("./static/head.html")
-
+	fmt.Println(rootFunctions)
 	cfg := ReverseCfg(backwardCallgraph)
+	fmt.Println("\n\tparent child")
+	for k, v := range cfg {
+		fmt.Print("\n\t", k)
+		fmt.Print(" ", v)
+	}
 	genTablePreamble(out, head)
 
 	for k, _ := range cfg {

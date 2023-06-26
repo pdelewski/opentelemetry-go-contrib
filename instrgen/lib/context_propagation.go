@@ -134,7 +134,7 @@ func (pass *ContextPropagationPass) Execute(
 		}
 		switch xNode := n.(type) {
 		case *ast.FuncDecl:
-			pkgPath := GetPkgPathForFunction(pkg, pkgs, xNode, analysis.Interfaces)
+			pkgPath := GetPkgPathForFunction(pkg, pkgs, xNode, analysis.Interfaces, analysis.InstrgenLog)
 			funId := pkgPath + "." + pkg.TypesInfo.Defs[xNode.Name].Name()
 			fun := FuncDescriptor{
 				Id:              funId,
@@ -231,6 +231,8 @@ func (pass *ContextPropagationPass) Execute(
 					fmt.Fprintln(analysis.InstrgenLog, "\t\t\tContext Propagation InterfaceType", fun.Id, fun.DeclType)
 					addImports = true
 					funcType.Params.List = append([]*ast.Field{ctxField}, funcType.Params.List...)
+				} else {
+					fmt.Fprintln(analysis.InstrgenLog, "\t\t\tContext Propagation InterfaceType failed", fun.Id, fun.DeclType)
 				}
 			}
 		}

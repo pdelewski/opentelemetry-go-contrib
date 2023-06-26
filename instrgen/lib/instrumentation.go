@@ -297,7 +297,7 @@ func (pass *InstrumentationPass) Execute(
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.FuncDecl:
-			pkgPath := GetPkgPathForFunction(pkg, pkgs, x, analysis.Interfaces)
+			pkgPath := GetPkgPathForFunction(pkg, pkgs, x, analysis.Interfaces, analysis.InstrgenLog)
 			fundId := pkgPath + "." + pkg.TypesInfo.Defs[x.Name].Name()
 			fun := FuncDescriptor{
 				Id:              fundId,
