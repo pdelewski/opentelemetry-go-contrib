@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -297,11 +298,15 @@ func (pass *InstrumentationPass) Execute(
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.FuncDecl:
-			pkgPath := GetPkgPathForFunction(pkg, pkgs, x, analysis.Interfaces)
-			fundId := pkgPath + "." + pkg.TypesInfo.Defs[x.Name].Name()
-			fun := FuncDescriptor{
-				Id:       fundId,
-				DeclType: pkg.TypesInfo.Defs[x.Name].Type().String()}
+			ftype := analysis.GInfo.Defs[node.Name].Type()
+			signature := ftype.(*types.Signature)
+			recv := signature.Recv()
+
+			var recvStr string
+			if recv != nil {
+				recvStr = "." + recv.Type().String()
+			}
+			fun := FuncDescriptor{node.Name.Name, recvStr, node.Name.String(), ftype.String()}
 			// check if it's root function or
 			// one of function in call graph
 			// and emit proper ast nodes
@@ -313,7 +318,7 @@ func (pass *InstrumentationPass) Execute(
 			}
 			for _, root := range analysis.RootFunctions {
 				visited := map[FuncDescriptor]bool{}
-				fmt.Println("\t\t\tInstrumentation FuncDecl:", fundId, pkg.TypesInfo.Defs[x.Name].Type().String())
+				fmt.Println("\t\t\tInstrumentation FuncDecl:", fun, pkg.TypesInfo.Defs[x.Name].Type().String())
 				if isPath(analysis.Callgraph, fun, root, visited) && fun.TypeHash() != root.TypeHash() {
 					x.Body.List = append(makeSpanStmts(x.Name.Name, "__atel_tracing_ctx"), x.Body.List...)
 					addContext = true
@@ -331,16 +336,11 @@ func (pass *InstrumentationPass) Execute(
 		case *ast.AssignStmt:
 			for _, e := range x.Lhs {
 				if ident, ok := e.(*ast.Ident); ok {
-					_ = ident
-					pkgPath := ""
-					pkgPath = GetPkgNameFromDefsTable(pkg, ident)
-					if pkg.TypesInfo.Defs[ident] == nil {
+					ftype := analysis.GInfo.Uses[ident].Type()
+					if ftype == nil {
 						return false
 					}
-					fundId := pkgPath + "." + pkg.TypesInfo.Defs[ident].Name()
-					fun := FuncDescriptor{
-						Id:       fundId,
-						DeclType: pkg.TypesInfo.Defs[ident].Type().String()}
+					fun := FuncDescriptor{node.Name.Name, "", ident.Name, ftype.String()}
 					_, exists := analysis.Callgraph[fun]
 					if exists {
 						return false
