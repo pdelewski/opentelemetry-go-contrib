@@ -88,6 +88,9 @@ func (pass *ContextPropagationPass) Execute(
 	}
 	emitCallExpr := func(ident *ast.Ident, n ast.Node, ctxArg *ast.Ident) {
 		if callExpr, ok := n.(*ast.CallExpr); ok {
+			if analysis.GInfo.Uses[ident] == nil {
+				return
+			}
 			ftype := analysis.GInfo.Uses[ident].Type()
 			if ftype == nil {
 				return
@@ -129,10 +132,10 @@ func (pass *ContextPropagationPass) Execute(
 		}
 		switch xNode := n.(type) {
 		case *ast.FuncDecl:
-			if analysis.GInfo.Defs[node.Name] == nil {
+			if analysis.GInfo.Defs[xNode.Name] == nil {
 				return false
 			}
-			ftype := analysis.GInfo.Defs[node.Name].Type()
+			ftype := analysis.GInfo.Defs[xNode.Name].Type()
 			signature := ftype.(*types.Signature)
 			recv := signature.Recv()
 
