@@ -143,17 +143,17 @@ func (pass *ContextPropagationPass) Execute(
 			if recv != nil {
 				recvStr = "." + recv.Type().String()
 			}
-			fun := FuncDescriptor{node.Name.Name, recvStr, node.Name.String(), ftype.String()}
+			fun := FuncDescriptor{node.Name.Name, recvStr, xNode.Name.String(), ftype.String()}
 			currentFun = fun
 			// inject context only
 			// functions available in the call graph
 			if !isFunPartOfCallGraph(fun, analysis.Callgraph) {
 				break
 			}
-
 			if Contains(analysis.RootFunctions, fun) {
 				break
 			}
+
 			visited := map[FuncDescriptor]bool{}
 
 			if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
