@@ -18,16 +18,8 @@ import (
 	"go/ast"
 	"go/types"
 	"golang.org/x/tools/go/loader"
-	"golang.org/x/tools/go/packages"
 	"strings"
 )
-
-// LoadMode. Tells about needed information during analysis.
-const LoadMode packages.LoadMode = packages.NeedName |
-	packages.NeedTypes |
-	packages.NeedSyntax |
-	packages.NeedTypesInfo |
-	packages.NeedFiles
 
 // FuncDescriptor stores an information about
 // id, type and if function requires custom instrumentation.
