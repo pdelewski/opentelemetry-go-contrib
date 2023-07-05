@@ -335,6 +335,9 @@ func (pass *InstrumentationPass) Execute(
 		case *ast.AssignStmt:
 			for _, e := range x.Lhs {
 				if ident, ok := e.(*ast.Ident); ok {
+					if analysis.GInfo.Uses[ident] == nil {
+						return false
+					}
 					ftype := analysis.GInfo.Uses[ident].Type()
 					if ftype == nil {
 						return false

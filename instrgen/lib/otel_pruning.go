@@ -99,7 +99,9 @@ func (pass *OtelPruner) Execute(
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.FuncDecl:
-			inspectFuncContent(x.Type, x.Body)
+			if x.Body != nil {
+				inspectFuncContent(x.Type, x.Body)
+			}
 		case *ast.CallExpr:
 			for argIndex := 0; argIndex < len(x.Args); argIndex++ {
 				if ident, ok := x.Args[argIndex].(*ast.Ident); ok {

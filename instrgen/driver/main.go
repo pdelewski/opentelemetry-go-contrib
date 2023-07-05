@@ -93,6 +93,7 @@ func makeAnalysis(projectPath string, packagePattern string, prog *loader.Progra
 		Callgraph:      backwardCallGraph,
 		Interfaces:     interfaces,
 		GInfo:          ginfo,
+		Prog:           prog,
 		Debug:          debug}
 	return analysis
 }

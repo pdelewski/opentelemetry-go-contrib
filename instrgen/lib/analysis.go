@@ -20,10 +20,11 @@ import (
 	"go/printer"
 	"go/token"
 	"go/types"
+	"golang.org/x/tools/go/loader"
 	"os"
+	"strings"
 
 	"golang.org/x/tools/go/ast/astutil"
-	"golang.org/x/tools/go/packages"
 )
 
 // PackageAnalysis analyze all package set accrding to passed
@@ -37,6 +38,7 @@ type PackageAnalysis struct {
 	FuncDecls      map[FuncDescriptor]bool
 	Callgraph      map[FuncDescriptor][]FuncDescriptor
 	Interfaces     map[string]types.Object
+	Prog           *loader.Program
 	GInfo          *types.Info
 	Debug          bool
 }
@@ -95,21 +97,20 @@ func addImports(imports []Import, fset *token.FileSet, fileNode *ast.File) {
 
 // Execute function, main entry point to analysis process.
 func (analysis *PackageAnalysis) Execute(pass FileAnalysisPass, fileSuffix string) ([]*ast.File, error) {
-	fset := token.NewFileSet()
-	cfg := &packages.Config{Fset: fset, Mode: LoadMode, Dir: analysis.ProjectPath}
-	pkgs, err := packages.Load(cfg, analysis.PackagePattern)
-	if err != nil {
-		return nil, err
-	}
+	fset := analysis.Prog.Fset
 	var fileNodeSet []*ast.File
-	for _, pkg := range pkgs {
-		fmt.Println("\t", pkg)
-		// fileNode represents a translationUnit
-		var fileNode *ast.File
-		for _, fileNode = range pkg.Syntax {
+
+	for _, pkg := range analysis.Prog.AllPackages {
+
+		fmt.Printf("Package path %q\n", pkg.Pkg.Path())
+		for _, file := range pkg.Files {
+			if analysis.PackagePattern != "" && !strings.Contains(analysis.Prog.Fset.Position(file.Name.Pos()).String(), analysis.PackagePattern) {
+				continue
+			}
+			fileNode := file
 			fmt.Println("\t\t", fset.File(fileNode.Pos()).Name())
 			var out *os.File
-			out, err = createFile(fset.File(fileNode.Pos()).Name() + fileSuffix)
+			out, err := createFile(fset.File(fileNode.Pos()).Name() + fileSuffix)
 			if err != nil {
 				return nil, err
 			}
