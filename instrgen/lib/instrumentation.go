@@ -300,9 +300,8 @@ func (pass *InstrumentationPass) Execute(
 			pkgPath := GetPkgPathForFunction(pkg, pkgs, x, analysis.Interfaces)
 			fundId := pkgPath + "." + pkg.TypesInfo.Defs[x.Name].Name()
 			fun := FuncDescriptor{
-				Id:              fundId,
-				DeclType:        pkg.TypesInfo.Defs[x.Name].Type().String(),
-				CustomInjection: false}
+				Id:       fundId,
+				DeclType: pkg.TypesInfo.Defs[x.Name].Type().String()}
 			// check if it's root function or
 			// one of function in call graph
 			// and emit proper ast nodes
@@ -340,9 +339,8 @@ func (pass *InstrumentationPass) Execute(
 					}
 					fundId := pkgPath + "." + pkg.TypesInfo.Defs[ident].Name()
 					fun := FuncDescriptor{
-						Id:              fundId,
-						DeclType:        pkg.TypesInfo.Defs[ident].Type().String(),
-						CustomInjection: true}
+						Id:       fundId,
+						DeclType: pkg.TypesInfo.Defs[ident].Type().String()}
 					_, exists := analysis.Callgraph[fun]
 					if exists {
 						return false

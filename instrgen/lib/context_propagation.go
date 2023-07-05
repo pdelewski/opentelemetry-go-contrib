@@ -93,9 +93,8 @@ func (pass *ContextPropagationPass) Execute(
 		if callExpr, ok := n.(*ast.CallExpr); ok {
 			funId := pkgPath + "." + pkg.TypesInfo.Uses[ident].Name()
 			fun := FuncDescriptor{
-				Id:              funId,
-				DeclType:        pkg.TypesInfo.Uses[ident].Type().String(),
-				CustomInjection: false}
+				Id:       funId,
+				DeclType: pkg.TypesInfo.Uses[ident].Type().String()}
 			found := analysis.FuncDecls[fun]
 
 			// inject context parameter only
@@ -135,9 +134,8 @@ func (pass *ContextPropagationPass) Execute(
 			pkgPath := GetPkgPathForFunction(pkg, pkgs, xNode, analysis.Interfaces)
 			funId := pkgPath + "." + pkg.TypesInfo.Defs[xNode.Name].Name()
 			fun := FuncDescriptor{
-				Id:              funId,
-				DeclType:        pkg.TypesInfo.Defs[xNode.Name].Type().String(),
-				CustomInjection: false}
+				Id:       funId,
+				DeclType: pkg.TypesInfo.Defs[xNode.Name].Type().String()}
 			currentFun = fun
 			// inject context only
 			// functions available in the call graph
@@ -191,9 +189,8 @@ func (pass *ContextPropagationPass) Execute(
 				pkgPath := GetPkgNameFromDefsTable(pkg, method.Names[0])
 				funId := pkgPath + "." + iname.Name + "." + pkg.TypesInfo.Defs[method.Names[0]].Name()
 				fun := FuncDescriptor{
-					Id:              funId,
-					DeclType:        pkg.TypesInfo.Defs[method.Names[0]].Type().String(),
-					CustomInjection: false}
+					Id:       funId,
+					DeclType: pkg.TypesInfo.Defs[method.Names[0]].Type().String()}
 				if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
 					fmt.Println("\t\t\tContext Propagation InterfaceType", fun.Id, fun.DeclType)
 					addImports = true

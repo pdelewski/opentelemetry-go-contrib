@@ -27,9 +27,8 @@ import (
 // FuncDescriptor stores an information about
 // id, type and if function requires custom instrumentation.
 type FuncDescriptor struct {
-	Id              string
-	DeclType        string
-	CustomInjection bool
+	Id       string
+	DeclType string
 }
 
 // Function TypeHash. Each function is itentified by its
@@ -81,7 +80,7 @@ func FindRootFunctions(projectPath string, packagePattern string, functionLabel 
 				case *ast.FuncDecl:
 					if pkg.TypesInfo.Defs[xNode.Name] != nil {
 						funId := pkg.TypesInfo.Defs[xNode.Name].Pkg().Path() + "." + pkg.TypesInfo.Defs[xNode.Name].Name()
-						currentFun = FuncDescriptor{funId, pkg.TypesInfo.Defs[xNode.Name].Type().String(), false}
+						currentFun = FuncDescriptor{funId, pkg.TypesInfo.Defs[xNode.Name].Type().String()}
 						fmt.Println("\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[xNode.Name].Type().String())
 					}
 				}
@@ -265,7 +264,7 @@ func BuildCallGraph(
 	fset := token.NewFileSet()
 	pkgs, _ := getPkgs(projectPath, packagePattern, fset)
 	fmt.Println("BuildCallGraph")
-	currentFun := FuncDescriptor{"nil", "", false}
+	currentFun := FuncDescriptor{"nil", ""}
 	backwardCallGraph := make(map[FuncDescriptor][]FuncDescriptor)
 	for _, pkg := range pkgs {
 		fmt.Println("\t", pkg)
@@ -280,7 +279,7 @@ func BuildCallGraph(
 						fmt.Println("\t\t\tFuncCall:", funId, pkg.TypesInfo.Uses[id].Type().String(),
 							" @called : ",
 							fset.File(node.Pos()).Name())
-						fun := FuncDescriptor{funId, pkg.TypesInfo.Uses[id].Type().String(), false}
+						fun := FuncDescriptor{funId, pkg.TypesInfo.Uses[id].Type().String()}
 						if !Contains(backwardCallGraph[fun], currentFun) {
 							if funcDecls[fun] {
 								backwardCallGraph[fun] = append(backwardCallGraph[fun], currentFun)
@@ -297,7 +296,7 @@ func BuildCallGraph(
 							fmt.Println("\t\t\tFuncCall via selector:", funId, pkg.TypesInfo.Uses[sel.Sel].Type().String(),
 								" @called : ",
 								fset.File(node.Pos()).Name())
-							fun := FuncDescriptor{funId, pkg.TypesInfo.Uses[sel.Sel].Type().String(), false}
+							fun := FuncDescriptor{funId, pkg.TypesInfo.Uses[sel.Sel].Type().String()}
 							if !Contains(backwardCallGraph[fun], currentFun) {
 								if funcDecls[fun] {
 									backwardCallGraph[fun] = append(backwardCallGraph[fun], currentFun)
@@ -309,8 +308,8 @@ func BuildCallGraph(
 					if pkg.TypesInfo.Defs[xNode.Name] != nil {
 						pkgPath := GetPkgPathForFunction(pkg, pkgs, xNode, interfaces)
 						funId := pkgPath + "." + pkg.TypesInfo.Defs[xNode.Name].Name()
-						funcDecls[FuncDescriptor{funId, pkg.TypesInfo.Defs[xNode.Name].Type().String(), false}] = true
-						currentFun = FuncDescriptor{funId, pkg.TypesInfo.Defs[xNode.Name].Type().String(), false}
+						funcDecls[FuncDescriptor{funId, pkg.TypesInfo.Defs[xNode.Name].Type().String()}] = true
+						currentFun = FuncDescriptor{funId, pkg.TypesInfo.Defs[xNode.Name].Type().String()}
 						fmt.Println("\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[xNode.Name].Type().String())
 					}
 				}
@@ -337,7 +336,7 @@ func FindFuncDecls(projectPath string, packagePattern string, interfaces map[str
 					if pkg.TypesInfo.Defs[funDeclNode.Name] != nil {
 						funId := pkgPath + "." + pkg.TypesInfo.Defs[funDeclNode.Name].Name()
 						fmt.Println("\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[funDeclNode.Name].Type().String())
-						funcDecls[FuncDescriptor{funId, pkg.TypesInfo.Defs[funDeclNode.Name].Type().String(), false}] = true
+						funcDecls[FuncDescriptor{funId, pkg.TypesInfo.Defs[funDeclNode.Name].Type().String()}] = true
 					}
 				}
 				return true
