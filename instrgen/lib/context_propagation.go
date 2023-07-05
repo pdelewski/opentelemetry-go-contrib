@@ -133,6 +133,9 @@ func (pass *ContextPropagationPass) Execute(
 		}
 		switch xNode := n.(type) {
 		case *ast.FuncDecl:
+			if analysis.GInfo.Defs[node.Name] == nil {
+				return false
+			}
 			ftype := analysis.GInfo.Defs[node.Name].Type()
 			signature := ftype.(*types.Signature)
 			recv := signature.Recv()
