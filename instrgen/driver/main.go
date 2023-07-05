@@ -92,6 +92,7 @@ func makeAnalysis(projectPath string, packagePattern string, prog *loader.Progra
 		FuncDecls:      funcDecls,
 		Callgraph:      backwardCallGraph,
 		Interfaces:     interfaces,
+		GInfo:          ginfo,
 		Debug:          debug}
 	return analysis
 }

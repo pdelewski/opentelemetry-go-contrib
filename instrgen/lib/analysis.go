@@ -37,6 +37,7 @@ type PackageAnalysis struct {
 	FuncDecls      map[FuncDescriptor]bool
 	Callgraph      map[FuncDescriptor][]FuncDescriptor
 	Interfaces     map[string]types.Object
+	GInfo          *types.Info
 	Debug          bool
 }
 

@@ -17,6 +17,7 @@ package lib // import "go.opentelemetry.io/contrib/instrgen/lib"
 import (
 	"fmt"
 	"go/ast"
+	"go/types"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -89,13 +90,14 @@ func (pass *ContextPropagationPass) Execute(
 		}
 		callExpr.Args = append([]ast.Expr{contextTodo}, callExpr.Args...)
 	}
-	emitCallExpr := func(ident *ast.Ident, n ast.Node, ctxArg *ast.Ident, pkgPath string) {
+	emitCallExpr := func(ident *ast.Ident, n ast.Node, ctxArg *ast.Ident) {
 		if callExpr, ok := n.(*ast.CallExpr); ok {
-			funId := pkgPath + "." + pkg.TypesInfo.Uses[ident].Name()
-			fun := FuncDescriptor{
-				Id:       funId,
-				DeclType: pkg.TypesInfo.Uses[ident].Type().String()}
-			found := analysis.FuncDecls[fun]
+			ftype := analysis.GInfo.Uses[ident].Type()
+			if ftype == nil {
+				return
+			}
+			funcCall := FuncDescriptor{node.Name.Name, "", ident.Name, ftype.String()}
+			found := analysis.FuncDecls[funcCall]
 
 			// inject context parameter only
 			// to these functions for which function decl
@@ -103,9 +105,9 @@ func (pass *ContextPropagationPass) Execute(
 
 			if found {
 				visited := map[FuncDescriptor]bool{}
-				if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
-					fmt.Println("\t\t\tContextPropagation FuncCall:", funId, pkg.TypesInfo.Uses[ident].Type().String())
-					emitEmptyContext(callExpr, fun, ctxArg)
+				if isPath(analysis.Callgraph, funcCall, analysis.RootFunctions[0], visited) {
+					fmt.Println("\t\t\tContextPropagation FuncCall:", funcCall, ftype)
+					emitEmptyContext(callExpr, funcCall, ctxArg)
 				}
 			}
 		}
@@ -131,11 +133,15 @@ func (pass *ContextPropagationPass) Execute(
 		}
 		switch xNode := n.(type) {
 		case *ast.FuncDecl:
-			pkgPath := GetPkgPathForFunction(pkg, pkgs, xNode, analysis.Interfaces)
-			funId := pkgPath + "." + pkg.TypesInfo.Defs[xNode.Name].Name()
-			fun := FuncDescriptor{
-				Id:       funId,
-				DeclType: pkg.TypesInfo.Defs[xNode.Name].Type().String()}
+			ftype := analysis.GInfo.Defs[node.Name].Type()
+			signature := ftype.(*types.Signature)
+			recv := signature.Recv()
+
+			var recvStr string
+			if recv != nil {
+				recvStr = "." + recv.Type().String()
+			}
+			fun := FuncDescriptor{node.Name.Name, recvStr, node.Name.String(), ftype.String()}
 			currentFun = fun
 			// inject context only
 			// functions available in the call graph
@@ -149,54 +155,45 @@ func (pass *ContextPropagationPass) Execute(
 			visited := map[FuncDescriptor]bool{}
 
 			if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
-				fmt.Println("\t\t\tContextPropagation FuncDecl:", funId,
+				fmt.Println("\t\t\tContextPropagation FuncDecl:", fun,
 					pkg.TypesInfo.Defs[xNode.Name].Type().String())
 				addImports = true
 				xNode.Type.Params.List = append([]*ast.Field{ctxField}, xNode.Type.Params.List...)
 			}
 		case *ast.CallExpr:
 			if ident, ok := xNode.Fun.(*ast.Ident); ok {
-				if pkg.TypesInfo.Uses[ident] == nil {
-					return false
-				}
-				pkgPath := GetPkgNameFromUsesTable(pkg, ident)
-				emitCallExpr(ident, n, ctxArg, pkgPath)
+				emitCallExpr(ident, n, ctxArg)
 			}
 
 			if sel, ok := xNode.Fun.(*ast.SelectorExpr); ok {
-				if pkg.TypesInfo.Uses[sel.Sel] == nil {
-					return false
-				}
-				pkgPath := GetPkgNameFromUsesTable(pkg, sel.Sel)
-				if sel.X != nil {
-					pkgPath = GetSelectorPkgPath(sel, pkg, pkgPath)
-				}
-				emitCallExpr(sel.Sel, n, ctxArg, pkgPath)
+				emitCallExpr(sel.Sel, n, ctxArg)
 			}
 
 		case *ast.TypeSpec:
-			iname := xNode.Name
-			iface, ok := xNode.Type.(*ast.InterfaceType)
-			if !ok {
-				return true
-			}
-			for _, method := range iface.Methods.List {
-				funcType, ok := method.Type.(*ast.FuncType)
+			/*
+				iname := xNode.Name
+				iface, ok := xNode.Type.(*ast.InterfaceType)
 				if !ok {
 					return true
 				}
-				visited := map[FuncDescriptor]bool{}
-				pkgPath := GetPkgNameFromDefsTable(pkg, method.Names[0])
-				funId := pkgPath + "." + iname.Name + "." + pkg.TypesInfo.Defs[method.Names[0]].Name()
-				fun := FuncDescriptor{
-					Id:       funId,
-					DeclType: pkg.TypesInfo.Defs[method.Names[0]].Type().String()}
-				if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
-					fmt.Println("\t\t\tContext Propagation InterfaceType", fun.Id, fun.DeclType)
-					addImports = true
-					funcType.Params.List = append([]*ast.Field{ctxField}, funcType.Params.List...)
+				for _, method := range iface.Methods.List {
+					funcType, ok := method.Type.(*ast.FuncType)
+					if !ok {
+						return true
+					}
+					visited := map[FuncDescriptor]bool{}
+					pkgPath := GetPkgNameFromDefsTable(pkg, method.Names[0])
+					funId := pkgPath + "." + iname.Name + "." + pkg.TypesInfo.Defs[method.Names[0]].Name()
+					fun := FuncDescriptor{
+						Id:       funId,
+						DeclType: pkg.TypesInfo.Defs[method.Names[0]].Type().String()}
+					if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
+						fmt.Println("\t\t\tContext Propagation InterfaceType", fun.Id, fun.DeclType)
+						addImports = true
+						funcType.Params.List = append([]*ast.Field{ctxField}, funcType.Params.List...)
+					}
 				}
-			}
+			*/
 		}
 		return true
 	})
