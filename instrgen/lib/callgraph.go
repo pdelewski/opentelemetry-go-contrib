@@ -131,7 +131,7 @@ func findFuncDecls(file *ast.File, ginfo *types.Info, interfaces map[string]type
 	})
 }
 
-func dumpFuncDecls(funcDecls map[FuncDescriptor]bool) {
+func DumpFuncDecls(funcDecls map[FuncDescriptor]bool) {
 	fmt.Println("FuncDecls")
 	for fun, _ := range funcDecls {
 		fmt.Println(fun)
@@ -198,7 +198,7 @@ func buildCallGraph(file *ast.File, ginfo *types.Info,
 	})
 }
 
-func dumpFuncCalls(file *ast.File, ginfo *types.Info) {
+func DumpFuncCalls(file *ast.File, ginfo *types.Info) {
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.CallExpr:
@@ -236,7 +236,7 @@ func dumpFuncCalls(file *ast.File, ginfo *types.Info) {
 	})
 }
 
-func dumpCallGraph(backwardCallGraph map[FuncDescriptor][]FuncDescriptor) {
+func DumpCallGraph(backwardCallGraph map[FuncDescriptor][]FuncDescriptor) {
 	fmt.Println("\n\tchild parent")
 	for k, v := range backwardCallGraph {
 		fmt.Print("\n\t", k.Id())
