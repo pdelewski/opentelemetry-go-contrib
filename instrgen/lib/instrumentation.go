@@ -285,8 +285,7 @@ func makeSpanStmts(name string, paramName string) []ast.Stmt {
 func (pass *InstrumentationPass) Execute(
 	node *ast.File,
 	analysis *PackageAnalysis,
-	pkg *packages.Package,
-	pkgs []*packages.Package) []Import {
+	pkg *packages.Package) []Import {
 	var imports []Import
 	addImports := false
 	addContext := false
@@ -298,10 +297,10 @@ func (pass *InstrumentationPass) Execute(
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.FuncDecl:
-			if analysis.GInfo.Defs[node.Name] == nil {
+			if analysis.GInfo.Defs[x.Name] == nil {
 				return false
 			}
-			ftype := analysis.GInfo.Defs[node.Name].Type()
+			ftype := analysis.GInfo.Defs[x.Name].Type()
 			signature := ftype.(*types.Signature)
 			recv := signature.Recv()
 
@@ -309,7 +308,7 @@ func (pass *InstrumentationPass) Execute(
 			if recv != nil {
 				recvStr = "." + recv.Type().String()
 			}
-			fun := FuncDescriptor{node.Name.Name, recvStr, node.Name.String(), ftype.String()}
+			fun := FuncDescriptor{node.Name.Name, recvStr, x.Name.String(), ftype.String()}
 			// check if it's root function or
 			// one of function in call graph
 			// and emit proper ast nodes

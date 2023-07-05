@@ -45,8 +45,7 @@ type ContextPropagationPass struct {
 func (pass *ContextPropagationPass) Execute(
 	node *ast.File,
 	analysis *PackageAnalysis,
-	pkg *packages.Package,
-	pkgs []*packages.Package) []Import {
+	pkg *packages.Package) []Import {
 	var imports []Import
 	addImports := false
 	// below variable is used

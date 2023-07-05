@@ -97,8 +97,7 @@ func inspectFuncContent(fType *ast.FuncType, fBody *ast.BlockStmt) {
 func (pass *OtelPruner) Execute(
 	node *ast.File,
 	analysis *PackageAnalysis,
-	pkg *packages.Package,
-	pkgs []*packages.Package) []Import {
+	pkg *packages.Package) []Import {
 	var imports []Import
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch x := n.(type) {

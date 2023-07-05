@@ -64,8 +64,7 @@ type Import struct {
 type FileAnalysisPass interface {
 	Execute(node *ast.File,
 		analysis *PackageAnalysis,
-		pkg *packages.Package,
-		pkgs []*packages.Package) []Import
+		pkg *packages.Package) []Import
 }
 
 func createFile(name string) (*os.File, error) {
@@ -122,7 +121,7 @@ func (analysis *PackageAnalysis) Execute(pass FileAnalysisPass, fileSuffix strin
 				}
 				continue
 			}
-			imports := pass.Execute(fileNode, analysis, pkg, pkgs)
+			imports := pass.Execute(fileNode, analysis, pkg)
 			addImports(imports, fset, fileNode)
 			e := printer.Fprint(out, fset, fileNode)
 			if e != nil {
