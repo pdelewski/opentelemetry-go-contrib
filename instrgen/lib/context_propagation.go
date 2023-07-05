@@ -168,7 +168,35 @@ func (pass *ContextPropagationPass) Execute(
 			}
 
 			if sel, ok := xNode.Fun.(*ast.SelectorExpr); ok {
-				emitCallExpr(sel.Sel, n, ctxArg)
+				obj := analysis.GInfo.Selections[sel]
+				if obj != nil {
+					recv := obj.Recv()
+					var ftypeStr string
+					// sel.Sel is function ident
+					ftype := analysis.GInfo.Uses[sel.Sel]
+
+					if ftype != nil {
+						ftypeStr = ftype.Type().String()
+					}
+					var recvStr string
+					if len(recv.String()) > 0 {
+						recvStr = "." + recv.String()
+					}
+					funcCall := FuncDescriptor{node.Name.Name, recvStr, obj.Obj().Name(), ftypeStr}
+					found := analysis.FuncDecls[funcCall]
+
+					// inject context parameter only
+					// to these functions for which function decl
+					// exists
+
+					if found {
+						visited := map[FuncDescriptor]bool{}
+						if isPath(analysis.Callgraph, funcCall, analysis.RootFunctions[0], visited) {
+							fmt.Println("\t\t\tContextPropagation FuncCall:", funcCall, ftype)
+							emitEmptyContext(xNode, funcCall, ctxArg)
+						}
+					}
+				}
 			}
 
 		case *ast.TypeSpec:
