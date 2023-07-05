@@ -200,30 +200,26 @@ func (pass *ContextPropagationPass) Execute(
 			}
 
 		case *ast.TypeSpec:
-			/*
-				iname := xNode.Name
-				iface, ok := xNode.Type.(*ast.InterfaceType)
+			iname := xNode.Name
+			iface, ok := xNode.Type.(*ast.InterfaceType)
+			if !ok {
+				return true
+			}
+			for _, method := range iface.Methods.List {
+				funcType, ok := method.Type.(*ast.FuncType)
 				if !ok {
 					return true
 				}
-				for _, method := range iface.Methods.List {
-					funcType, ok := method.Type.(*ast.FuncType)
-					if !ok {
-						return true
-					}
-					visited := map[FuncDescriptor]bool{}
-					pkgPath := GetPkgNameFromDefsTable(pkg, method.Names[0])
-					funId := pkgPath + "." + iname.Name + "." + pkg.TypesInfo.Defs[method.Names[0]].Name()
-					fun := FuncDescriptor{
-						Id:       funId,
-						DeclType: pkg.TypesInfo.Defs[method.Names[0]].Type().String()}
-					if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
-						fmt.Println("\t\t\tContext Propagation InterfaceType", fun.Id, fun.DeclType)
-						addImports = true
-						funcType.Params.List = append([]*ast.Field{ctxField}, funcType.Params.List...)
-					}
+				visited := map[FuncDescriptor]bool{}
+				fun := FuncDescriptor{node.Name.Name, "." + analysis.GInfo.Defs[iname].Id(),
+					analysis.GInfo.Defs[method.Names[0]].Name(),
+					analysis.GInfo.Defs[method.Names[0]].Type().String()}
+				if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
+					fmt.Println("\t\t\tContext Propagation InterfaceType", fun)
+					addImports = true
+					funcType.Params.List = append([]*ast.Field{ctxField}, funcType.Params.List...)
 				}
-			*/
+			}
 		}
 		return true
 	})
