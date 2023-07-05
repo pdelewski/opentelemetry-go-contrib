@@ -19,6 +19,7 @@ import (
 	"go/ast"
 	"go/printer"
 	"go/token"
+	"go/types"
 	"os"
 
 	"golang.org/x/tools/go/ast/astutil"
@@ -35,7 +36,7 @@ type PackageAnalysis struct {
 	RootFunctions  []FuncDescriptor
 	FuncDecls      map[FuncDescriptor]bool
 	Callgraph      map[FuncDescriptor][]FuncDescriptor
-	Interfaces     map[string]bool
+	Interfaces     map[string]types.Object
 	Debug          bool
 }
 

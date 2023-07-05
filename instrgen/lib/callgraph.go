@@ -13,29 +13,14 @@
 // limitations under the License.
 
 package lib // import "go.opentelemetry.io/contrib/instrgen/lib"
-
 import (
 	"fmt"
 	"go/ast"
-	"go/token"
 	"go/types"
-	"strings"
-
+	"golang.org/x/tools/go/loader"
 	"golang.org/x/tools/go/packages"
+	"strings"
 )
-
-// FuncDescriptor stores an information about
-// id, type and if function requires custom instrumentation.
-type FuncDescriptor struct {
-	Id       string
-	DeclType string
-}
-
-// Function TypeHash. Each function is itentified by its
-// id and type.
-func (fd FuncDescriptor) TypeHash() string {
-	return fd.Id + fd.DeclType
-}
 
 // LoadMode. Tells about needed information during analysis.
 const LoadMode packages.LoadMode = packages.NeedName |
@@ -44,348 +29,274 @@ const LoadMode packages.LoadMode = packages.NeedName |
 	packages.NeedTypesInfo |
 	packages.NeedFiles
 
-func getPkgs(projectPath string, packagePattern string, fset *token.FileSet) ([]*packages.Package, error) {
-	cfg := &packages.Config{Fset: fset, Mode: LoadMode, Dir: projectPath}
-	pkgs, err := packages.Load(cfg, packagePattern)
-	var packageSet []*packages.Package
-	if err != nil {
-		return nil, err
-	}
-	for _, pkg := range pkgs {
-		fmt.Println("\t", pkg)
-		packageSet = append(packageSet, pkg)
-	}
-	return packageSet, nil
+// FuncDescriptor stores an information about
+// id, type and if function requires custom instrumentation.
+type FuncDescriptor struct {
+	PackageName  string
+	Receiver     string
+	FunctionName string
+	FuncType     string
 }
 
-// FindRootFunctions looks for all root functions eg. entry points.
-// Currently an entry point is a function that contains call of function
-// passed as functionLabel paramaterer.
-func FindRootFunctions(projectPath string, packagePattern string, functionLabel string) []FuncDescriptor {
-	fset := token.NewFileSet()
-	pkgs, _ := getPkgs(projectPath, packagePattern, fset)
+func (fd FuncDescriptor) Id() string {
+	recvStr := fd.Receiver
+	return fd.PackageName + recvStr + "." + fd.FunctionName + "." + fd.FuncType
+}
+
+func (fd FuncDescriptor) TypeHash() string {
+	recvStr := fd.Receiver
+	return fd.PackageName + recvStr + "." + fd.FunctionName + "." + fd.FuncType
+}
+
+func GetInterfaces(defs map[*ast.Ident]types.Object) map[string]types.Object {
+	interfaces := make(map[string]types.Object)
+	for id, obj := range defs {
+		if obj == nil || obj.Type() == nil {
+			continue
+		}
+		if _, ok := obj.(*types.TypeName); !ok {
+			continue
+		}
+		if types.IsInterface(obj.Type()) {
+			interfaces[id.Name] = obj
+		}
+	}
+	return interfaces
+}
+
+func isAny(obj types.Object) bool {
+	return obj.Type().String() == "any" || obj.Type().Underlying().String() == "any"
+}
+
+func getInterfaceNameForReceiver(interfaces map[string]types.Object, recv *types.Var) string {
+	var recvInterface string
+	for _, obj := range interfaces {
+		if t, ok := obj.Type().Underlying().(*types.Interface); ok {
+			if types.Implements(recv.Type(), t) && !isAny(obj) {
+				recvInterface = "." + obj.Type().String()
+			}
+		}
+	}
+	return recvInterface
+}
+
+func findRootFunctions(file *ast.File, ginfo *types.Info, interfaces map[string]types.Object, functionLabel string, rootFunctions *[]FuncDescriptor) {
 	var currentFun FuncDescriptor
-	var rootFunctions []FuncDescriptor
-	for _, pkg := range pkgs {
-		for _, node := range pkg.Syntax {
-			ast.Inspect(node, func(n ast.Node) bool {
-				switch xNode := n.(type) {
-				case *ast.CallExpr:
-					selector, ok := xNode.Fun.(*ast.SelectorExpr)
-					if ok {
-						if selector.Sel.Name == functionLabel {
-							rootFunctions = append(rootFunctions, currentFun)
-						}
-					}
-				case *ast.FuncDecl:
-					if pkg.TypesInfo.Defs[xNode.Name] != nil {
-						funId := pkg.TypesInfo.Defs[xNode.Name].Pkg().Path() + "." + pkg.TypesInfo.Defs[xNode.Name].Name()
-						currentFun = FuncDescriptor{funId, pkg.TypesInfo.Defs[xNode.Name].Type().String()}
-						fmt.Println("\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[xNode.Name].Type().String())
-					}
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.FuncDecl:
+			ftype := ginfo.Defs[node.Name].Type()
+			signature := ftype.(*types.Signature)
+			recv := signature.Recv()
+
+			var recvStr string
+			var recvInterface string
+			if recv != nil {
+				recvStr = "." + recv.Type().String()
+				recvInterface = getInterfaceNameForReceiver(interfaces, recv)
+			}
+			if recvInterface != "" {
+				currentFun = FuncDescriptor{file.Name.Name, recvInterface, node.Name.String(), ftype.String()}
+			} else {
+				currentFun = FuncDescriptor{file.Name.Name, recvStr, node.Name.String(), ftype.String()}
+			}
+
+		case *ast.CallExpr:
+			selector, ok := node.Fun.(*ast.SelectorExpr)
+			if ok {
+				if selector.Sel.Name == functionLabel {
+					fmt.Println("sel:", selector.Sel.Name, currentFun)
+					*rootFunctions = append(*rootFunctions, currentFun)
 				}
-				return true
-			})
+			}
+		}
+		return true
+	})
+}
+
+func findFuncDecls(file *ast.File, ginfo *types.Info, interfaces map[string]types.Object, funcDecls map[FuncDescriptor]bool) {
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.FuncDecl:
+			ftype := ginfo.Defs[node.Name].Type()
+			signature := ftype.(*types.Signature)
+			recv := signature.Recv()
+
+			var recvStr string
+			var recvInterface string
+			if recv != nil {
+				recvStr = "." + recv.Type().String()
+				recvInterface = getInterfaceNameForReceiver(interfaces, recv)
+			}
+			if recvInterface != "" {
+				funcDecl := FuncDescriptor{file.Name.Name, recvInterface, node.Name.String(), ftype.String()}
+				funcDecls[funcDecl] = true
+			}
+			funcDecl := FuncDescriptor{file.Name.Name, recvStr, node.Name.String(), ftype.String()}
+			funcDecls[funcDecl] = true
+		}
+		return true
+	})
+}
+
+func dumpFuncDecls(funcDecls map[FuncDescriptor]bool) {
+	fmt.Println("FuncDecls")
+	for fun, _ := range funcDecls {
+		fmt.Println(fun)
+	}
+}
+
+func addFuncCallToCallGraph(funcCall FuncDescriptor, currentFun FuncDescriptor,
+	funcDecls map[FuncDescriptor]bool, backwardCallGraph map[FuncDescriptor][]FuncDescriptor) {
+	if !Contains(backwardCallGraph[funcCall], currentFun) {
+		if _, ok := funcDecls[funcCall]; ok {
+			backwardCallGraph[funcCall] = append(backwardCallGraph[funcCall], currentFun)
+		}
+	}
+}
+
+func buildCallGraph(file *ast.File, ginfo *types.Info,
+	interfaces map[string]types.Object, funcDecls map[FuncDescriptor]bool,
+	backwardCallGraph map[FuncDescriptor][]FuncDescriptor) {
+	currentFun := FuncDescriptor{}
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.FuncDecl:
+			ftype := ginfo.Defs[node.Name].Type()
+			signature := ftype.(*types.Signature)
+			recv := signature.Recv()
+
+			var recvStr string
+			if recv != nil {
+				recvStr = "." + recv.Type().String()
+			}
+			currentFun = FuncDescriptor{file.Name.Name, recvStr, node.Name.String(), ftype.String()}
+		case *ast.CallExpr:
+			switch node := node.Fun.(type) {
+			case *ast.Ident:
+				ftype := ginfo.Uses[node].Type()
+				if ftype != nil {
+					funcCall := FuncDescriptor{file.Name.Name, "", node.Name, ftype.String()}
+					addFuncCallToCallGraph(funcCall, currentFun, funcDecls, backwardCallGraph)
+				}
+			case *ast.SelectorExpr:
+				obj := ginfo.Selections[node]
+				if obj != nil {
+					recv := obj.Recv()
+					var ftypeStr string
+					// sel.Sel is function ident
+					ftype := ginfo.Uses[node.Sel]
+
+					if ftype != nil {
+						ftypeStr = ftype.Type().String()
+					}
+					var recvStr string
+					if len(recv.String()) > 0 {
+						recvStr = "." + recv.String()
+					}
+
+					funcCall := FuncDescriptor{file.Name.Name, recvStr, obj.Obj().Name(), ftypeStr}
+					addFuncCallToCallGraph(funcCall, currentFun, funcDecls, backwardCallGraph)
+				}
+
+			}
+		}
+		return true
+
+	})
+}
+
+func dumpFuncCalls(file *ast.File, ginfo *types.Info) {
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.CallExpr:
+			switch node := node.Fun.(type) {
+			case *ast.Ident:
+				ftype := ginfo.Uses[node].Type()
+				if ftype != nil {
+					funcCall := FuncDescriptor{file.Name.Name, "", node.Name, ftype.String()}
+					fmt.Println("FuncCall:", funcCall)
+				}
+			case *ast.SelectorExpr:
+				obj := ginfo.Selections[node]
+				if obj != nil {
+					recv := obj.Recv()
+					var ftypeStr string
+					// sel.Sel is function ident
+					ftype := ginfo.Uses[node.Sel]
+
+					if ftype != nil {
+						ftypeStr = ftype.Type().String()
+					}
+					var recvStr string
+					if len(recv.String()) > 0 {
+						recvStr = "." + recv.String()
+					}
+
+					funcCall := FuncDescriptor{file.Name.Name, recvStr, obj.Obj().Name(), ftypeStr}
+					fmt.Println("FuncCall:", funcCall)
+				}
+
+			}
+		}
+		return true
+
+	})
+}
+
+func dumpCallGraph(backwardCallGraph map[FuncDescriptor][]FuncDescriptor) {
+	fmt.Println("\n\tchild parent")
+	for k, v := range backwardCallGraph {
+		fmt.Print("\n\t", k.Id())
+		fmt.Print(" ", v)
+	}
+	fmt.Print("\n")
+}
+
+func FindRootFunctions(prog *loader.Program, ginfo *types.Info, interfaces map[string]types.Object, allowedPathPattern string) []FuncDescriptor {
+	var rootFunctions []FuncDescriptor
+	for _, pkg := range prog.AllPackages {
+
+		fmt.Printf("Package path %q\n", pkg.Pkg.Path())
+		for _, file := range pkg.Files {
+			if allowedPathPattern != "" && !strings.Contains(prog.Fset.Position(file.Name.Pos()).String(), allowedPathPattern) {
+				continue
+			}
+			fmt.Println(prog.Fset.Position(file.Name.Pos()).String())
+			findRootFunctions(file, ginfo, interfaces, "AutotelEntryPoint", &rootFunctions)
 		}
 	}
 	return rootFunctions
 }
 
-// GetMostInnerAstIdent takes most inner identifier used for
-// function call. For a.b.foo(), `b` will be the most inner identifier.
-func GetMostInnerAstIdent(inSel *ast.SelectorExpr) *ast.Ident {
-	var l []*ast.Ident
-	var e ast.Expr
-	e = inSel
-	for e != nil {
-		if _, ok := e.(*ast.Ident); ok {
-			l = append(l, e.(*ast.Ident))
-			break
-		} else if _, ok := e.(*ast.SelectorExpr); ok {
-			l = append(l, e.(*ast.SelectorExpr).Sel)
-			e = e.(*ast.SelectorExpr).X
-		} else if _, ok := e.(*ast.CallExpr); ok {
-			e = e.(*ast.CallExpr).Fun
-		} else if _, ok := e.(*ast.IndexExpr); ok {
-			e = e.(*ast.IndexExpr).X
-		} else if _, ok := e.(*ast.UnaryExpr); ok {
-			e = e.(*ast.UnaryExpr).X
-		} else if _, ok := e.(*ast.ParenExpr); ok {
-			e = e.(*ast.ParenExpr).X
-		} else if _, ok := e.(*ast.SliceExpr); ok {
-			e = e.(*ast.SliceExpr).X
-		} else if _, ok := e.(*ast.IndexListExpr); ok {
-			e = e.(*ast.IndexListExpr).X
-		} else if _, ok := e.(*ast.StarExpr); ok {
-			e = e.(*ast.StarExpr).X
-		} else if _, ok := e.(*ast.TypeAssertExpr); ok {
-			e = e.(*ast.TypeAssertExpr).X
-		} else if _, ok := e.(*ast.CompositeLit); ok {
-			// TODO dummy implementation
-			if len(e.(*ast.CompositeLit).Elts) == 0 {
-				e = e.(*ast.CompositeLit).Type
-			} else {
-				e = e.(*ast.CompositeLit).Elts[0]
-			}
-		} else if _, ok := e.(*ast.KeyValueExpr); ok {
-			e = e.(*ast.KeyValueExpr).Value
-		} else {
-			// TODO this is uncaught expression
-			panic("uncaught expression")
-		}
-	}
-	if len(l) < 2 {
-		panic("selector list should have at least 2 elems")
-	}
-	// caller or receiver is always
-	// at position 1, function is at 0
-	return l[1]
-}
-
-// GetPkgPathFromRecvInterface builds package path taking
-// receiver interface into account.
-func GetPkgPathFromRecvInterface(pkg *packages.Package,
-	pkgs []*packages.Package, funDeclNode *ast.FuncDecl, interfaces map[string]bool) string {
-	var pkgPath string
-	for _, v := range funDeclNode.Recv.List {
-		for _, dependentpkg := range pkgs {
-			for _, defs := range dependentpkg.TypesInfo.Defs {
-				if defs == nil {
-					continue
-				}
-				if _, ok := defs.Type().Underlying().(*types.Interface); !ok {
-					continue
-				}
-				if len(v.Names) == 0 || pkg.TypesInfo.Defs[v.Names[0]] == nil {
-					continue
-				}
-				funType := pkg.TypesInfo.Defs[v.Names[0]].Type()
-
-				if types.Implements(funType, defs.Type().Underlying().(*types.Interface)) {
-					interfaceExists := interfaces[defs.Type().String()]
-					if interfaceExists {
-						pkgPath = defs.Type().String()
-					}
-					break
-				}
-			}
-		}
-	}
-	return pkgPath
-}
-
-// GetPkgPathFromFunctionRecv build package path taking function receiver parameters.
-func GetPkgPathFromFunctionRecv(pkg *packages.Package,
-	pkgs []*packages.Package, funDeclNode *ast.FuncDecl, interfaces map[string]bool) string {
-	pkgPath := GetPkgPathFromRecvInterface(pkg, pkgs, funDeclNode, interfaces)
-	if len(pkgPath) != 0 {
-		return pkgPath
-	}
-	for _, v := range funDeclNode.Recv.List {
-		if len(v.Names) == 0 {
-			continue
-		}
-		funType := pkg.TypesInfo.Defs[v.Names[0]].Type()
-		pkgPath = funType.String()
-		// We don't care if that's pointer, remove it from
-		// type id
-		if _, ok := funType.(*types.Pointer); ok {
-			pkgPath = strings.TrimPrefix(pkgPath, "*")
-		}
-		// We don't care if called via index, remove it from
-		// type id
-		if _, ok := funType.(*types.Slice); ok {
-			pkgPath = strings.TrimPrefix(pkgPath, "[]")
-		}
-	}
-
-	return pkgPath
-}
-
-// GetSelectorPkgPath builds packages path according to selector expr.
-func GetSelectorPkgPath(sel *ast.SelectorExpr, pkg *packages.Package, pkgPath string) string {
-	caller := GetMostInnerAstIdent(sel)
-	if caller != nil && pkg.TypesInfo.Uses[caller] != nil {
-		if !strings.Contains(pkg.TypesInfo.Uses[caller].Type().String(), "invalid") {
-			pkgPath = pkg.TypesInfo.Uses[caller].Type().String()
-			// We don't care if that's pointer, remove it from
-			// type id
-			if _, ok := pkg.TypesInfo.Uses[caller].Type().(*types.Pointer); ok {
-				pkgPath = strings.TrimPrefix(pkgPath, "*")
-			}
-			// We don't care if called via index, remove it from
-			// type id
-			if _, ok := pkg.TypesInfo.Uses[caller].Type().(*types.Slice); ok {
-				pkgPath = strings.TrimPrefix(pkgPath, "[]")
-			}
-		}
-	}
-	return pkgPath
-}
-
-// GetPkgNameFromUsesTable gets package name from uses table.
-func GetPkgNameFromUsesTable(pkg *packages.Package, ident *ast.Ident) string {
-	var pkgPath string
-	if pkg.TypesInfo.Uses[ident].Pkg() != nil {
-		pkgPath = pkg.TypesInfo.Uses[ident].Pkg().Path()
-	}
-	return pkgPath
-}
-
-// GetPkgNameFromDefsTable gets package name from uses table.
-func GetPkgNameFromDefsTable(pkg *packages.Package, ident *ast.Ident) string {
-	var pkgPath string
-	if pkg.TypesInfo.Defs[ident] == nil {
-		return pkgPath
-	}
-	if pkg.TypesInfo.Defs[ident].Pkg() != nil {
-		pkgPath = pkg.TypesInfo.Defs[ident].Pkg().Path()
-	}
-	return pkgPath
-}
-
-// GetPkgPathForFunction builds package path, delegates work to
-// other helper functions defined above.
-func GetPkgPathForFunction(pkg *packages.Package,
-	pkgs []*packages.Package, funDecl *ast.FuncDecl, interfaces map[string]bool) string {
-	if funDecl.Recv != nil {
-		return GetPkgPathFromFunctionRecv(pkg, pkgs, funDecl, interfaces)
-	}
-	return GetPkgNameFromDefsTable(pkg, funDecl.Name)
-}
-
-// BuildCallGraph builds an information about flow graph
-// in the following form child->parent.
-func BuildCallGraph(
-	projectPath string,
-	packagePattern string,
-	funcDecls map[FuncDescriptor]bool,
-	interfaces map[string]bool) map[FuncDescriptor][]FuncDescriptor {
-	fset := token.NewFileSet()
-	pkgs, _ := getPkgs(projectPath, packagePattern, fset)
-	fmt.Println("BuildCallGraph")
-	currentFun := FuncDescriptor{"nil", ""}
-	backwardCallGraph := make(map[FuncDescriptor][]FuncDescriptor)
-	for _, pkg := range pkgs {
-		fmt.Println("\t", pkg)
-		for _, node := range pkg.Syntax {
-			fmt.Println("\t\t", fset.File(node.Pos()).Name())
-			ast.Inspect(node, func(n ast.Node) bool {
-				switch xNode := n.(type) {
-				case *ast.CallExpr:
-					if id, ok := xNode.Fun.(*ast.Ident); ok {
-						pkgPath := GetPkgNameFromUsesTable(pkg, id)
-						funId := pkgPath + "." + pkg.TypesInfo.Uses[id].Name()
-						fmt.Println("\t\t\tFuncCall:", funId, pkg.TypesInfo.Uses[id].Type().String(),
-							" @called : ",
-							fset.File(node.Pos()).Name())
-						fun := FuncDescriptor{funId, pkg.TypesInfo.Uses[id].Type().String()}
-						if !Contains(backwardCallGraph[fun], currentFun) {
-							if funcDecls[fun] {
-								backwardCallGraph[fun] = append(backwardCallGraph[fun], currentFun)
-							}
-						}
-					}
-					if sel, ok := xNode.Fun.(*ast.SelectorExpr); ok {
-						if pkg.TypesInfo.Uses[sel.Sel] != nil {
-							pkgPath := GetPkgNameFromUsesTable(pkg, sel.Sel)
-							if sel.X != nil {
-								pkgPath = GetSelectorPkgPath(sel, pkg, pkgPath)
-							}
-							funId := pkgPath + "." + pkg.TypesInfo.Uses[sel.Sel].Name()
-							fmt.Println("\t\t\tFuncCall via selector:", funId, pkg.TypesInfo.Uses[sel.Sel].Type().String(),
-								" @called : ",
-								fset.File(node.Pos()).Name())
-							fun := FuncDescriptor{funId, pkg.TypesInfo.Uses[sel.Sel].Type().String()}
-							if !Contains(backwardCallGraph[fun], currentFun) {
-								if funcDecls[fun] {
-									backwardCallGraph[fun] = append(backwardCallGraph[fun], currentFun)
-								}
-							}
-						}
-					}
-				case *ast.FuncDecl:
-					if pkg.TypesInfo.Defs[xNode.Name] != nil {
-						pkgPath := GetPkgPathForFunction(pkg, pkgs, xNode, interfaces)
-						funId := pkgPath + "." + pkg.TypesInfo.Defs[xNode.Name].Name()
-						funcDecls[FuncDescriptor{funId, pkg.TypesInfo.Defs[xNode.Name].Type().String()}] = true
-						currentFun = FuncDescriptor{funId, pkg.TypesInfo.Defs[xNode.Name].Type().String()}
-						fmt.Println("\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[xNode.Name].Type().String())
-					}
-				}
-				return true
-			})
-		}
-	}
-	return backwardCallGraph
-}
-
-// FindFuncDecls looks for all function declarations.
-func FindFuncDecls(projectPath string, packagePattern string, interfaces map[string]bool) map[FuncDescriptor]bool {
-	fset := token.NewFileSet()
-	pkgs, _ := getPkgs(projectPath, packagePattern, fset)
-	fmt.Println("FindFuncDecls")
+func FindFuncDecls(prog *loader.Program, ginfo *types.Info, interfaces map[string]types.Object, allowedPathPattern string) map[FuncDescriptor]bool {
 	funcDecls := make(map[FuncDescriptor]bool)
-	for _, pkg := range pkgs {
-		fmt.Println("\t", pkg)
-		for _, node := range pkg.Syntax {
-			fmt.Println("\t\t", fset.File(node.Pos()).Name())
-			ast.Inspect(node, func(n ast.Node) bool {
-				if funDeclNode, ok := n.(*ast.FuncDecl); ok {
-					pkgPath := GetPkgPathForFunction(pkg, pkgs, funDeclNode, interfaces)
-					if pkg.TypesInfo.Defs[funDeclNode.Name] != nil {
-						funId := pkgPath + "." + pkg.TypesInfo.Defs[funDeclNode.Name].Name()
-						fmt.Println("\t\t\tFuncDecl:", funId, pkg.TypesInfo.Defs[funDeclNode.Name].Type().String())
-						funcDecls[FuncDescriptor{funId, pkg.TypesInfo.Defs[funDeclNode.Name].Type().String()}] = true
-					}
-				}
-				return true
-			})
+	for _, pkg := range prog.AllPackages {
+
+		fmt.Printf("Package path %q\n", pkg.Pkg.Path())
+		for _, file := range pkg.Files {
+			if allowedPathPattern != "" && !strings.Contains(prog.Fset.Position(file.Name.Pos()).String(), allowedPathPattern) {
+				continue
+			}
+			fmt.Println(prog.Fset.Position(file.Name.Pos()).String())
+			findFuncDecls(file, ginfo, interfaces, funcDecls)
 		}
 	}
 	return funcDecls
 }
 
-// FindInterfaces looks for all interfaces.
-func FindInterfaces(projectPath string, packagePattern string) map[string]bool {
-	fset := token.NewFileSet()
-	pkgs, _ := getPkgs(projectPath, packagePattern, fset)
-	fmt.Println("FindInterfaces")
-	interaceTable := make(map[string]bool)
-	for _, pkg := range pkgs {
-		fmt.Println("\t", pkg)
-		for _, node := range pkg.Syntax {
-			fmt.Println("\t\t", fset.File(node.Pos()).Name())
-			ast.Inspect(node, func(n ast.Node) bool {
-				if typeSpecNode, ok := n.(*ast.TypeSpec); ok {
-					if _, ok := typeSpecNode.Type.(*ast.InterfaceType); ok {
-						fmt.Println("\t\t\tInterface:", pkg.TypesInfo.Defs[typeSpecNode.Name].Type().String())
-						interaceTable[pkg.TypesInfo.Defs[typeSpecNode.Name].Type().String()] = true
-					}
-				}
-				return true
-			})
+func BuildCallGraph(prog *loader.Program, ginfo *types.Info,
+	interfaces map[string]types.Object, funcDecls map[FuncDescriptor]bool, allowedPathPattern string) map[FuncDescriptor][]FuncDescriptor {
+	backwardCallGraph := make(map[FuncDescriptor][]FuncDescriptor)
+	for _, pkg := range prog.AllPackages {
+		fmt.Printf("Package path %q\n", pkg.Pkg.Path())
+		for _, file := range pkg.Files {
+			if allowedPathPattern != "" && !strings.Contains(prog.Fset.Position(file.Name.Pos()).String(), allowedPathPattern) {
+				continue
+			}
+			fmt.Println(prog.Fset.Position(file.Name.Pos()).String())
+			buildCallGraph(file, ginfo, interfaces, funcDecls, backwardCallGraph)
 		}
 	}
-	return interaceTable
-}
-
-// InferRootFunctionsFromGraph tries to infer entry points from passed call graph.
-func InferRootFunctionsFromGraph(callgraph map[FuncDescriptor][]FuncDescriptor) []FuncDescriptor {
-	var allFunctions map[FuncDescriptor]bool
-	var rootFunctions []FuncDescriptor
-	allFunctions = make(map[FuncDescriptor]bool)
-	for k, v := range callgraph {
-		allFunctions[k] = true
-		for _, childFun := range v {
-			allFunctions[childFun] = true
-		}
-	}
-	for k := range allFunctions {
-		_, exists := callgraph[k]
-		if !exists {
-			rootFunctions = append(rootFunctions, k)
-		}
-	}
-	return rootFunctions
+	return backwardCallGraph
 }

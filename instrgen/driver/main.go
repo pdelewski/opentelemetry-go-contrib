@@ -18,8 +18,14 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/build"
+	"go/parser"
+	"go/types"
+	"golang.org/x/tools/go/loader"
 	"log"
 	"os"
+	"path/filepath"
+	"sync"
 
 	alib "go.opentelemetry.io/contrib/instrgen/lib"
 )
@@ -35,13 +41,44 @@ func usage() error {
 	return nil
 }
 
-func makeAnalysis(projectPath string, packagePattern string, debug bool) *alib.PackageAnalysis {
-	var rootFunctions []alib.FuncDescriptor
+func LoadProgram(projectPath string, ginfo *types.Info) (*loader.Program, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	conf := loader.Config{ParserMode: parser.ParseComments}
+	conf.Build = &build.Default
+	conf.Build.CgoEnabled = false
+	conf.Build.Dir = filepath.Join(cwd, projectPath)
+	conf.Import(projectPath)
+	var mutex = &sync.RWMutex{}
+	conf.AfterTypeCheck = func(info *loader.PackageInfo, files []*ast.File) {
+		for k, v := range info.Defs {
+			mutex.Lock()
+			ginfo.Defs[k] = v
+			mutex.Unlock()
+		}
+		for k, v := range info.Uses {
+			mutex.Lock()
+			ginfo.Uses[k] = v
+			mutex.Unlock()
+		}
+		for k, v := range info.Selections {
+			mutex.Lock()
+			ginfo.Selections[k] = v
+			mutex.Unlock()
+		}
+	}
+	return conf.Load()
 
-	interfaces := alib.FindInterfaces(projectPath, packagePattern)
-	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint")...)
-	funcDecls := alib.FindFuncDecls(projectPath, packagePattern, interfaces)
-	backwardCallGraph := alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces)
+}
+
+func makeAnalysis(projectPath string, packagePattern string, prog *loader.Program, ginfo *types.Info, debug bool) *alib.PackageAnalysis {
+	var rootFunctions []alib.FuncDescriptor
+	interfaces := alib.GetInterfaces(ginfo.Defs)
+	rootFunctions = append(rootFunctions, alib.FindRootFunctions(prog, ginfo, interfaces, packagePattern)...)
+	funcDecls := alib.FindFuncDecls(prog, ginfo, interfaces, packagePattern)
+	backwardCallGraph := alib.BuildCallGraph(prog, ginfo, interfaces, funcDecls, packagePattern)
 	fmt.Println("\n\tchild parent")
 	for k, v := range backwardCallGraph {
 		fmt.Print("\n\t", k)
@@ -60,24 +97,26 @@ func makeAnalysis(projectPath string, packagePattern string, debug bool) *alib.P
 }
 
 // Prune.
-func Prune(projectPath string, packagePattern string, debug bool) ([]*ast.File, error) {
-	analysis := makeAnalysis(projectPath, packagePattern, debug)
+func Prune(projectPath string, packagePattern string, prog *loader.Program, ginfo *types.Info, debug bool) ([]*ast.File, error) {
+	analysis := makeAnalysis(projectPath, packagePattern, prog, ginfo, debug)
 	return analysis.Execute(&alib.OtelPruner{}, otelPrunerPassSuffix)
 }
 
-func makeCallGraph(projectPath string, packagePattern string) map[alib.FuncDescriptor][]alib.FuncDescriptor {
+func makeCallGraph(packagePattern string, prog *loader.Program, ginfo *types.Info) map[alib.FuncDescriptor][]alib.FuncDescriptor {
 	var funcDecls map[alib.FuncDescriptor]bool
 	var backwardCallGraph map[alib.FuncDescriptor][]alib.FuncDescriptor
 
-	interfaces := alib.FindInterfaces(projectPath, packagePattern)
-	funcDecls = alib.FindFuncDecls(projectPath, packagePattern, interfaces)
-	backwardCallGraph = alib.BuildCallGraph(projectPath, packagePattern, funcDecls, interfaces)
+	interfaces := alib.GetInterfaces(ginfo.Defs)
+	funcDecls = alib.FindFuncDecls(prog, ginfo, interfaces, packagePattern)
+	backwardCallGraph = alib.BuildCallGraph(prog, ginfo, interfaces, funcDecls, packagePattern)
+
 	return backwardCallGraph
 }
 
-func makeRootFunctions(projectPath string, packagePattern string) []alib.FuncDescriptor {
+func makeRootFunctions(prog *loader.Program, ginfo *types.Info, packagePattern string) []alib.FuncDescriptor {
 	var rootFunctions []alib.FuncDescriptor
-	rootFunctions = append(rootFunctions, alib.FindRootFunctions(projectPath, packagePattern, "AutotelEntryPoint")...)
+	interfaces := alib.GetInterfaces(ginfo.Defs)
+	rootFunctions = append(rootFunctions, alib.FindRootFunctions(prog, ginfo, interfaces, packagePattern)...)
 	return rootFunctions
 }
 
@@ -118,13 +157,23 @@ func executeCommand(command string, projectPath string, packagePattern string) e
 	if err != nil {
 		return err
 	}
+	ginfo := &types.Info{
+		Defs:       make(map[*ast.Ident]types.Object),
+		Uses:       make(map[*ast.Ident]types.Object),
+		Selections: make(map[*ast.SelectorExpr]*types.Selection),
+	}
+
+	prog, err := LoadProgram(projectPath, ginfo)
+	if err != nil {
+		fmt.Println(err)
+	}
 	switch command {
 	case "--inject":
-		_, err := Prune(projectPath, packagePattern, false)
+		_, err := Prune(projectPath, packagePattern, prog, ginfo, false)
 		if err != nil {
 			return err
 		}
-		analysis := makeAnalysis(projectPath, packagePattern, false)
+		analysis := makeAnalysis(projectPath, packagePattern, prog, ginfo, false)
 		err = ExecutePasses(analysis)
 		if err != nil {
 			return err
@@ -132,11 +181,11 @@ func executeCommand(command string, projectPath string, packagePattern string) e
 		fmt.Println("\tinstrumentation done")
 		return nil
 	case "--inject-dump-ir":
-		_, err := Prune(projectPath, packagePattern, true)
+		_, err := Prune(projectPath, packagePattern, prog, ginfo, true)
 		if err != nil {
 			return err
 		}
-		analysis := makeAnalysis(projectPath, packagePattern, true)
+		analysis := makeAnalysis(projectPath, packagePattern, prog, ginfo, true)
 		err = ExecutePassesDumpIr(analysis)
 		if err != nil {
 			return err
@@ -144,15 +193,15 @@ func executeCommand(command string, projectPath string, packagePattern string) e
 		fmt.Println("\tinstrumentation done")
 		return nil
 	case "--dumpcfg":
-		backwardCallGraph := makeCallGraph(projectPath, packagePattern)
+		backwardCallGraph := makeCallGraph(packagePattern, prog, ginfo)
 		dumpCallGraph(backwardCallGraph)
 		return nil
 	case "--rootfunctions":
-		rootFunctions := makeRootFunctions(projectPath, packagePattern)
+		rootFunctions := makeRootFunctions(prog, ginfo, packagePattern)
 		dumpRootFunctions(rootFunctions)
 		return nil
 	case "--prune":
-		_, err := Prune(projectPath, packagePattern, false)
+		_, err := Prune(projectPath, packagePattern, prog, ginfo, false)
 		if err != nil {
 			return err
 		}

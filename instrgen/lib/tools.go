@@ -62,7 +62,7 @@ func isPath(
 // Contains.
 func Contains(a []FuncDescriptor, x FuncDescriptor) bool {
 	for _, n := range a {
-		if x.TypeHash() == n.TypeHash() {
+		if x.Id() == n.Id() {
 			return true
 		}
 	}
