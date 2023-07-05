@@ -19,8 +19,6 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-
-	"golang.org/x/tools/go/packages"
 )
 
 // InstrumentationPass.
@@ -284,8 +282,7 @@ func makeSpanStmts(name string, paramName string) []ast.Stmt {
 // Execute.
 func (pass *InstrumentationPass) Execute(
 	node *ast.File,
-	analysis *PackageAnalysis,
-	pkg *packages.Package) []Import {
+	analysis *PackageAnalysis) []Import {
 	var imports []Import
 	addImports := false
 	addContext := false
@@ -320,7 +317,7 @@ func (pass *InstrumentationPass) Execute(
 			}
 			for _, root := range analysis.RootFunctions {
 				visited := map[FuncDescriptor]bool{}
-				fmt.Println("\t\t\tInstrumentation FuncDecl:", fun, pkg.TypesInfo.Defs[x.Name].Type().String())
+				fmt.Println("\t\t\tInstrumentation FuncDecl:", fun, ftype)
 				if isPath(analysis.Callgraph, fun, root, visited) && fun.TypeHash() != root.TypeHash() {
 					x.Body.List = append(makeSpanStmts(x.Name.Name, "__atel_tracing_ctx"), x.Body.List...)
 					addContext = true

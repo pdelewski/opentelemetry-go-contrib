@@ -17,8 +17,6 @@ package lib // import "go.opentelemetry.io/contrib/instrgen/lib"
 import (
 	"go/ast"
 	"strings"
-
-	"golang.org/x/tools/go/packages"
 )
 
 func removeStmt(slice []ast.Stmt, s int) []ast.Stmt {
@@ -96,8 +94,7 @@ func inspectFuncContent(fType *ast.FuncType, fBody *ast.BlockStmt) {
 // Execute.
 func (pass *OtelPruner) Execute(
 	node *ast.File,
-	analysis *PackageAnalysis,
-	pkg *packages.Package) []Import {
+	analysis *PackageAnalysis) []Import {
 	var imports []Import
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch x := n.(type) {

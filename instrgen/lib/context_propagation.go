@@ -18,8 +18,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/types"
-
-	"golang.org/x/tools/go/packages"
 )
 
 func isFunPartOfCallGraph(fun FuncDescriptor, callgraph map[FuncDescriptor][]FuncDescriptor) bool {
@@ -44,8 +42,7 @@ type ContextPropagationPass struct {
 // Execute.
 func (pass *ContextPropagationPass) Execute(
 	node *ast.File,
-	analysis *PackageAnalysis,
-	pkg *packages.Package) []Import {
+	analysis *PackageAnalysis) []Import {
 	var imports []Import
 	addImports := false
 	// below variable is used
@@ -158,7 +155,7 @@ func (pass *ContextPropagationPass) Execute(
 
 			if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
 				fmt.Println("\t\t\tContextPropagation FuncDecl:", fun,
-					pkg.TypesInfo.Defs[xNode.Name].Type().String())
+					ftype)
 				addImports = true
 				xNode.Type.Params.List = append([]*ast.Field{ctxField}, xNode.Type.Params.List...)
 			}
