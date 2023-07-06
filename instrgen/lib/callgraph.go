@@ -262,12 +262,12 @@ func FindRootFunctions(prog *loader.Program, ginfo *types.Info, interfaces map[s
 	var rootFunctions []FuncDescriptor
 	for _, pkg := range prog.AllPackages {
 
-		fmt.Printf("Package path %q\n", pkg.Pkg.Path())
+		//fmt.Printf("Package path %q\n", pkg.Pkg.Path())
 		for _, file := range pkg.Files {
 			if allowedPathPattern != "" && !strings.Contains(prog.Fset.Position(file.Name.Pos()).String(), allowedPathPattern) {
 				continue
 			}
-			fmt.Println(prog.Fset.Position(file.Name.Pos()).String())
+			//fmt.Println(prog.Fset.Position(file.Name.Pos()).String())
 			findRootFunctions(file, ginfo, interfaces, "AutotelEntryPoint", &rootFunctions)
 		}
 	}
@@ -278,12 +278,12 @@ func FindFuncDecls(prog *loader.Program, ginfo *types.Info, interfaces map[strin
 	funcDecls := make(map[FuncDescriptor]bool)
 	for _, pkg := range prog.AllPackages {
 
-		fmt.Printf("Package path %q\n", pkg.Pkg.Path())
+		//fmt.Printf("Package path %q\n", pkg.Pkg.Path())
 		for _, file := range pkg.Files {
 			if allowedPathPattern != "" && !strings.Contains(prog.Fset.Position(file.Name.Pos()).String(), allowedPathPattern) {
 				continue
 			}
-			fmt.Println(prog.Fset.Position(file.Name.Pos()).String())
+			//fmt.Println(prog.Fset.Position(file.Name.Pos()).String())
 			findFuncDecls(file, ginfo, interfaces, funcDecls)
 		}
 	}
@@ -294,12 +294,12 @@ func BuildCallGraph(prog *loader.Program, ginfo *types.Info,
 	interfaces map[string]types.Object, funcDecls map[FuncDescriptor]bool, allowedPathPattern string) map[FuncDescriptor][]FuncDescriptor {
 	backwardCallGraph := make(map[FuncDescriptor][]FuncDescriptor)
 	for _, pkg := range prog.AllPackages {
-		fmt.Printf("Package path %q\n", pkg.Pkg.Path())
+		//fmt.Printf("Package path %q\n", pkg.Pkg.Path())
 		for _, file := range pkg.Files {
 			if allowedPathPattern != "" && !strings.Contains(prog.Fset.Position(file.Name.Pos()).String(), allowedPathPattern) {
 				continue
 			}
-			fmt.Println(prog.Fset.Position(file.Name.Pos()).String())
+			//fmt.Println(prog.Fset.Position(file.Name.Pos()).String())
 			buildCallGraph(file, ginfo, interfaces, funcDecls, backwardCallGraph)
 		}
 	}

@@ -102,7 +102,7 @@ func (analysis *PackageAnalysis) Execute(pass FileAnalysisPass, fileSuffix strin
 
 	for _, pkg := range analysis.Prog.AllPackages {
 
-		fmt.Printf("Package path %q\n", pkg.Pkg.Path())
+		//fmt.Printf("Package path %q\n", pkg.Pkg.Path())
 		for _, file := range pkg.Files {
 			if analysis.PackagePattern != "" && !strings.Contains(analysis.Prog.Fset.Position(file.Name.Pos()).String(), analysis.PackagePattern) {
 				continue

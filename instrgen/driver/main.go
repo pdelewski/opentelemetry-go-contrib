@@ -78,6 +78,7 @@ func makeAnalysis(projectPath string, packagePattern string, prog *loader.Progra
 	interfaces := alib.GetInterfaces(ginfo.Defs)
 	rootFunctions = append(rootFunctions, alib.FindRootFunctions(prog, ginfo, interfaces, packagePattern)...)
 	funcDecls := alib.FindFuncDecls(prog, ginfo, interfaces, packagePattern)
+	alib.DumpFuncDecls(funcDecls)
 	backwardCallGraph := alib.BuildCallGraph(prog, ginfo, interfaces, funcDecls, packagePattern)
 	fmt.Println("\n\tchild parent")
 	for k, v := range backwardCallGraph {
