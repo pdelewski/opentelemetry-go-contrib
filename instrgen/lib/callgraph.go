@@ -199,8 +199,11 @@ func buildCallGraph(file *ast.File, ginfo *types.Info,
 					if len(recv.String()) > 0 {
 						recvStr = "." + recv.String()
 					}
-
-					funcCall := FuncDescriptor{obj.Obj().Pkg().String(), recvStr, obj.Obj().Name(), ftypeStr}
+					pkg := ""
+					if obj.Obj().Pkg() != nil {
+						pkg = obj.Obj().Pkg().String()
+					}
+					funcCall := FuncDescriptor{pkg, recvStr, obj.Obj().Name(), ftypeStr}
 					addFuncCallToCallGraph(funcCall, currentFun, funcDecls, backwardCallGraph)
 				}
 
