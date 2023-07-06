@@ -52,24 +52,7 @@ func (pass *ContextPropagationPass) Execute(
 	emitEmptyContext := func(callExpr *ast.CallExpr, fun FuncDescriptor, ctxArg *ast.Ident) {
 		addImports = true
 		if currentFun != (FuncDescriptor{}) {
-			visited := map[FuncDescriptor]bool{}
-			if isPath(analysis.Callgraph, currentFun, analysis.RootFunctions[0], visited) {
-				callExpr.Args = append([]ast.Expr{ctxArg}, callExpr.Args...)
-			} else {
-				contextTodo := &ast.CallExpr{
-					Fun: &ast.SelectorExpr{
-						X: &ast.Ident{
-							Name: "__atel_context",
-						},
-						Sel: &ast.Ident{
-							Name: "TODO",
-						},
-					},
-					Lparen:   62,
-					Ellipsis: 0,
-				}
-				callExpr.Args = append([]ast.Expr{contextTodo}, callExpr.Args...)
-			}
+			callExpr.Args = append([]ast.Expr{ctxArg}, callExpr.Args...)
 			return
 		}
 		contextTodo := &ast.CallExpr{
@@ -95,7 +78,11 @@ func (pass *ContextPropagationPass) Execute(
 			if ftype == nil {
 				return
 			}
-			funcCall := FuncDescriptor{node.Name.Name, "", ident.Name, ftype.String()}
+			pkg := ""
+			if analysis.GInfo.Uses[ident].Pkg() != nil {
+				pkg = analysis.GInfo.Uses[ident].Pkg().String()
+			}
+			funcCall := FuncDescriptor{pkg, "", ident.Name, ftype.String()}
 			found := analysis.FuncDecls[funcCall]
 
 			// inject context parameter only
@@ -103,11 +90,8 @@ func (pass *ContextPropagationPass) Execute(
 			// exists
 
 			if found {
-				visited := map[FuncDescriptor]bool{}
-				if isPath(analysis.Callgraph, funcCall, analysis.RootFunctions[0], visited) {
-					fmt.Println("\t\t\tContextPropagation FuncCall:", funcCall, ftype)
-					emitEmptyContext(callExpr, funcCall, ctxArg)
-				}
+				fmt.Println("\t\t\tContextPropagation FuncCall:", funcCall, ftype)
+				emitEmptyContext(callExpr, funcCall, ctxArg)
 			}
 		}
 	}
@@ -143,20 +127,13 @@ func (pass *ContextPropagationPass) Execute(
 			if recv != nil {
 				recvStr = "." + recv.Type().String()
 			}
-			fun := FuncDescriptor{node.Name.Name, recvStr, xNode.Name.String(), ftype.String()}
+			fun := FuncDescriptor{analysis.GInfo.Defs[xNode.Name].Pkg().String(), recvStr, xNode.Name.String(), ftype.String()}
 			currentFun = fun
-			// inject context only
-			// functions available in the call graph
-			if !isFunPartOfCallGraph(fun, analysis.Callgraph) {
-				break
-			}
 			if Contains(analysis.RootFunctions, fun) {
 				break
 			}
-
-			visited := map[FuncDescriptor]bool{}
-
-			if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
+			found := analysis.FuncDecls[fun]
+			if found {
 				fmt.Println("\t\t\tContextPropagation FuncDecl:", fun,
 					ftype)
 				addImports = true
@@ -182,19 +159,15 @@ func (pass *ContextPropagationPass) Execute(
 					if len(recv.String()) > 0 {
 						recvStr = "." + recv.String()
 					}
-					funcCall := FuncDescriptor{node.Name.Name, recvStr, obj.Obj().Name(), ftypeStr}
+					funcCall := FuncDescriptor{obj.Obj().Pkg().String(), recvStr, obj.Obj().Name(), ftypeStr}
 					found := analysis.FuncDecls[funcCall]
-
 					// inject context parameter only
 					// to these functions for which function decl
 					// exists
 
 					if found {
-						visited := map[FuncDescriptor]bool{}
-						if isPath(analysis.Callgraph, funcCall, analysis.RootFunctions[0], visited) {
-							fmt.Println("\t\t\tContextPropagation FuncCall:", funcCall, ftype)
-							emitEmptyContext(xNode, funcCall, ctxArg)
-						}
+						fmt.Println("\t\t\tContextPropagation FuncCall:", funcCall, ftype)
+						emitEmptyContext(xNode, funcCall, ctxArg)
 					}
 				}
 			}
@@ -210,15 +183,12 @@ func (pass *ContextPropagationPass) Execute(
 				if !ok {
 					return true
 				}
-				visited := map[FuncDescriptor]bool{}
-				fun := FuncDescriptor{node.Name.Name, "." + analysis.GInfo.Defs[iname].Id(),
+				fun := FuncDescriptor{analysis.GInfo.Defs[method.Names[0]].Id(), "." + analysis.GInfo.Defs[iname].Id(),
 					analysis.GInfo.Defs[method.Names[0]].Name(),
 					analysis.GInfo.Defs[method.Names[0]].Type().String()}
-				if isPath(analysis.Callgraph, fun, analysis.RootFunctions[0], visited) {
-					fmt.Println("\t\t\tContext Propagation InterfaceType", fun)
-					addImports = true
-					funcType.Params.List = append([]*ast.Field{ctxField}, funcType.Params.List...)
-				}
+				fmt.Println("\t\t\tContext Propagation InterfaceType", fun)
+				addImports = true
+				funcType.Params.List = append([]*ast.Field{ctxField}, funcType.Params.List...)
 			}
 		}
 		return true

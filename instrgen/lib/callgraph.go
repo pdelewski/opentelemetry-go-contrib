@@ -60,16 +60,15 @@ func isAny(obj types.Object) bool {
 	return obj.Type().String() == "any" || obj.Type().Underlying().String() == "any"
 }
 
-func getInterfaceNameForReceiver(interfaces map[string]types.Object, recv *types.Var) string {
-	var recvInterface string
+func getInterfaceNameForReceiver(interfaces map[string]types.Object, recv *types.Var) types.Object {
 	for _, obj := range interfaces {
 		if t, ok := obj.Type().Underlying().(*types.Interface); ok {
 			if types.Implements(recv.Type(), t) && !isAny(obj) {
-				recvInterface = "." + obj.Type().String()
+				return obj
 			}
 		}
 	}
-	return recvInterface
+	return nil
 }
 
 func findRootFunctions(file *ast.File, ginfo *types.Info, interfaces map[string]types.Object, functionLabel string, rootFunctions *[]FuncDescriptor) {
@@ -81,23 +80,26 @@ func findRootFunctions(file *ast.File, ginfo *types.Info, interfaces map[string]
 			signature := ftype.(*types.Signature)
 			recv := signature.Recv()
 
+			var recvI types.Object
 			var recvStr string
 			var recvInterface string
 			if recv != nil {
 				recvStr = "." + recv.Type().String()
-				recvInterface = getInterfaceNameForReceiver(interfaces, recv)
+				recvI = getInterfaceNameForReceiver(interfaces, recv)
+				if recvI != nil {
+					recvInterface = "." + recvI.Type().String()
+				}
 			}
 			if recvInterface != "" {
-				currentFun = FuncDescriptor{file.Name.Name, recvInterface, node.Name.String(), ftype.String()}
+				currentFun = FuncDescriptor{recvI.Pkg().String(), recvInterface, node.Name.String(), ftype.String()}
 			} else {
-				currentFun = FuncDescriptor{file.Name.Name, recvStr, node.Name.String(), ftype.String()}
+				currentFun = FuncDescriptor{ginfo.Defs[node.Name].Pkg().String(), recvStr, node.Name.String(), ftype.String()}
 			}
 
 		case *ast.CallExpr:
 			selector, ok := node.Fun.(*ast.SelectorExpr)
 			if ok {
 				if selector.Sel.Name == functionLabel {
-					fmt.Println("sel:", selector.Sel.Name, currentFun)
 					*rootFunctions = append(*rootFunctions, currentFun)
 				}
 			}
@@ -114,17 +116,22 @@ func findFuncDecls(file *ast.File, ginfo *types.Info, interfaces map[string]type
 			signature := ftype.(*types.Signature)
 			recv := signature.Recv()
 
+			var recvI types.Object
 			var recvStr string
 			var recvInterface string
 			if recv != nil {
 				recvStr = "." + recv.Type().String()
-				recvInterface = getInterfaceNameForReceiver(interfaces, recv)
+				recvI = getInterfaceNameForReceiver(interfaces, recv)
+				if recvI != nil {
+					recvInterface = "." + recvI.Type().String()
+				}
 			}
+
 			if recvInterface != "" {
-				funcDecl := FuncDescriptor{file.Name.Name, recvInterface, node.Name.String(), ftype.String()}
+				funcDecl := FuncDescriptor{recvI.Pkg().String(), recvInterface, node.Name.String(), ftype.String()}
 				funcDecls[funcDecl] = true
 			}
-			funcDecl := FuncDescriptor{file.Name.Name, recvStr, node.Name.String(), ftype.String()}
+			funcDecl := FuncDescriptor{ginfo.Defs[node.Name].Pkg().String(), recvStr, node.Name.String(), ftype.String()}
 			funcDecls[funcDecl] = true
 		}
 		return true
@@ -162,13 +169,19 @@ func buildCallGraph(file *ast.File, ginfo *types.Info,
 			if recv != nil {
 				recvStr = "." + recv.Type().String()
 			}
-			currentFun = FuncDescriptor{file.Name.Name, recvStr, node.Name.String(), ftype.String()}
+
+			currentFun = FuncDescriptor{ginfo.Defs[node.Name].Pkg().String(), recvStr, node.Name.String(), ftype.String()}
 		case *ast.CallExpr:
 			switch node := node.Fun.(type) {
 			case *ast.Ident:
 				ftype := ginfo.Uses[node].Type()
+				pkg := ""
+				if ginfo.Uses[node].Pkg() != nil {
+					pkg = ginfo.Uses[node].Pkg().String()
+				}
 				if ftype != nil {
-					funcCall := FuncDescriptor{file.Name.Name, "", node.Name, ftype.String()}
+					funcCall := FuncDescriptor{pkg, "", node.Name, ftype.String()}
+
 					addFuncCallToCallGraph(funcCall, currentFun, funcDecls, backwardCallGraph)
 				}
 			case *ast.SelectorExpr:
@@ -187,7 +200,7 @@ func buildCallGraph(file *ast.File, ginfo *types.Info,
 						recvStr = "." + recv.String()
 					}
 
-					funcCall := FuncDescriptor{file.Name.Name, recvStr, obj.Obj().Name(), ftypeStr}
+					funcCall := FuncDescriptor{obj.Obj().Pkg().String(), recvStr, obj.Obj().Name(), ftypeStr}
 					addFuncCallToCallGraph(funcCall, currentFun, funcDecls, backwardCallGraph)
 				}
 
@@ -206,7 +219,7 @@ func DumpFuncCalls(file *ast.File, ginfo *types.Info) {
 			case *ast.Ident:
 				ftype := ginfo.Uses[node].Type()
 				if ftype != nil {
-					funcCall := FuncDescriptor{file.Name.Name, "", node.Name, ftype.String()}
+					funcCall := FuncDescriptor{ginfo.Defs[node].Pkg().String(), "", node.Name, ftype.String()}
 					fmt.Println("FuncCall:", funcCall)
 				}
 			case *ast.SelectorExpr:
@@ -225,7 +238,7 @@ func DumpFuncCalls(file *ast.File, ginfo *types.Info) {
 						recvStr = "." + recv.String()
 					}
 
-					funcCall := FuncDescriptor{file.Name.Name, recvStr, obj.Obj().Name(), ftypeStr}
+					funcCall := FuncDescriptor{obj.Obj().Pkg().String(), recvStr, obj.Obj().Name(), ftypeStr}
 					fmt.Println("FuncCall:", funcCall)
 				}
 

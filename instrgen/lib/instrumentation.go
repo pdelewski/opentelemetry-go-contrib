@@ -305,20 +305,10 @@ func (pass *InstrumentationPass) Execute(
 			if recv != nil {
 				recvStr = "." + recv.Type().String()
 			}
-			fun := FuncDescriptor{node.Name.Name, recvStr, x.Name.String(), ftype.String()}
-			// check if it's root function or
-			// one of function in call graph
-			// and emit proper ast nodes
-			_, exists := analysis.Callgraph[fun]
-			if !exists {
-				if !Contains(analysis.RootFunctions, fun) {
-					return false
-				}
-			}
+			fun := FuncDescriptor{analysis.GInfo.Defs[x.Name].Pkg().String(), recvStr, x.Name.String(), ftype.String()}
 			for _, root := range analysis.RootFunctions {
-				visited := map[FuncDescriptor]bool{}
 				fmt.Println("\t\t\tInstrumentation FuncDecl:", fun, ftype)
-				if isPath(analysis.Callgraph, fun, root, visited) && fun.TypeHash() != root.TypeHash() {
+				if fun.TypeHash() != root.TypeHash() {
 					x.Body.List = append(makeSpanStmts(x.Name.Name, "__atel_tracing_ctx"), x.Body.List...)
 					addContext = true
 					addImports = true
