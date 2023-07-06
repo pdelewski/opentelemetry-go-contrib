@@ -168,6 +168,7 @@ func executeCommand(command string, projectPath string, packagePattern string) e
 	prog, err := LoadProgram(projectPath, ginfo)
 	if err != nil {
 		fmt.Println(err)
+		return err
 	}
 	switch command {
 	case "--inject":
