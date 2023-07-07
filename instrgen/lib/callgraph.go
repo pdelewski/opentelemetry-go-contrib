@@ -72,35 +72,37 @@ func getInterfaceNameForReceiver(interfaces map[string]types.Object, recv *types
 }
 
 func findRootFunctions(file *ast.File, ginfo *types.Info, interfaces map[string]types.Object, functionLabel string, rootFunctions *[]FuncDescriptor) {
-	var currentFun FuncDescriptor
+	var parentFunc FuncDescriptor
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.FuncDecl:
 			ftype := ginfo.Defs[node.Name].Type()
 			signature := ftype.(*types.Signature)
-			recv := signature.Recv()
+			receiver := signature.Recv()
 
-			var recvI types.Object
-			var recvStr string
-			var recvInterface string
-			if recv != nil {
-				recvStr = "." + recv.Type().String()
-				recvI = getInterfaceNameForReceiver(interfaces, recv)
-				if recvI != nil {
-					recvInterface = "." + recvI.Type().String()
-				}
+			var interfaceObj types.Object
+			var receiverStr string
+			var interfaceStr string
+			if receiver != nil {
+				receiverStr = "." + receiver.Type().String()
+				interfaceObj = getInterfaceNameForReceiver(interfaces, receiver)
 			}
-			if recvInterface != "" {
-				currentFun = FuncDescriptor{recvI.Pkg().String(), recvInterface, node.Name.String(), ftype.String()}
-			} else {
-				currentFun = FuncDescriptor{ginfo.Defs[node.Name].Pkg().String(), recvStr, node.Name.String(), ftype.String()}
+			if interfaceObj != nil {
+				interfaceStr = "." + interfaceObj.Type().String()
 			}
+			if interfaceStr != "" {
+				parentFunc = FuncDescriptor{interfaceObj.Pkg().String(),
+					interfaceStr, node.Name.String(), ftype.String()}
+				break
+			}
+			parentFunc = FuncDescriptor{ginfo.Defs[node.Name].Pkg().String(),
+				receiverStr, node.Name.String(), ftype.String()}
 
 		case *ast.CallExpr:
 			selector, ok := node.Fun.(*ast.SelectorExpr)
 			if ok {
 				if selector.Sel.Name == functionLabel {
-					*rootFunctions = append(*rootFunctions, currentFun)
+					*rootFunctions = append(*rootFunctions, parentFunc)
 				}
 			}
 		}
@@ -114,24 +116,26 @@ func findFuncDecls(file *ast.File, ginfo *types.Info, interfaces map[string]type
 		case *ast.FuncDecl:
 			ftype := ginfo.Defs[node.Name].Type()
 			signature := ftype.(*types.Signature)
-			recv := signature.Recv()
+			receiver := signature.Recv()
 
-			var recvI types.Object
-			var recvStr string
-			var recvInterface string
-			if recv != nil {
-				recvStr = "." + recv.Type().String()
-				recvI = getInterfaceNameForReceiver(interfaces, recv)
-				if recvI != nil {
-					recvInterface = "." + recvI.Type().String()
-				}
+			var interfaceObj types.Object
+			var receiverStr string
+			var interfaceStr string
+			if receiver != nil {
+				receiverStr = "." + receiver.Type().String()
+				interfaceObj = getInterfaceNameForReceiver(interfaces, receiver)
+			}
+			if interfaceObj != nil {
+				interfaceStr = "." + interfaceObj.Type().String()
 			}
 
-			if recvInterface != "" {
-				funcDecl := FuncDescriptor{recvI.Pkg().String(), recvInterface, node.Name.String(), ftype.String()}
+			if interfaceStr != "" {
+				funcDecl := FuncDescriptor{interfaceObj.Pkg().String(),
+					interfaceStr, node.Name.String(), ftype.String()}
 				funcDecls[funcDecl] = true
 			}
-			funcDecl := FuncDescriptor{ginfo.Defs[node.Name].Pkg().String(), recvStr, node.Name.String(), ftype.String()}
+			funcDecl := FuncDescriptor{ginfo.Defs[node.Name].Pkg().String(),
+				receiverStr, node.Name.String(), ftype.String()}
 			funcDecls[funcDecl] = true
 		}
 		return true
