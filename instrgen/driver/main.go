@@ -41,6 +41,7 @@ func usage() error {
 	return nil
 }
 
+// Load whole go program.
 func LoadProgram(projectPath string, ginfo *types.Info) (*loader.Program, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
