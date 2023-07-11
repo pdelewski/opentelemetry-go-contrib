@@ -21,7 +21,11 @@ import (
 	__atel_otel "go.opentelemetry.io/otel"
 )
 
-func Close() error {
+func Close(__atel_tracing_ctx __atel_context.Context,) error {
+	__atel_child_tracing_ctx, __atel_span := __atel_otel.Tracer("Close").Start(__atel_tracing_ctx, "Close")
+	_ = __atel_child_tracing_ctx
+	defer __atel_span.End()
+
 	return nil
 }
 
@@ -29,6 +33,7 @@ func pack(__atel_tracing_ctx __atel_context.Context,) {
 	__atel_child_tracing_ctx, __atel_span := __atel_otel.Tracer("pack").Start(__atel_tracing_ctx, "pack")
 	_ = __atel_child_tracing_ctx
 	defer __atel_span.End()
+
 	f, e := os.Create("temp")
 	defer f.Close()
 	if e != nil {

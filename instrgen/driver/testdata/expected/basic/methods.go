@@ -38,10 +38,15 @@ func (i impl) anotherfoo(__atel_tracing_ctx __atel_context.Context, p int) int {
 	__atel_child_tracing_ctx, __atel_span := __atel_otel.Tracer("anotherfoo").Start(__atel_tracing_ctx, "anotherfoo")
 	_ = __atel_child_tracing_ctx
 	defer __atel_span.End()
+
 	return 5
 }
 
-func anotherfoo(p int) int {
+func anotherfoo(__atel_tracing_ctx __atel_context.Context, p int) int {
+	__atel_child_tracing_ctx, __atel_span := __atel_otel.Tracer("anotherfoo").Start(__atel_tracing_ctx, "anotherfoo")
+	_ = __atel_child_tracing_ctx
+	defer __atel_span.End()
+
 	return 1
 }
 
