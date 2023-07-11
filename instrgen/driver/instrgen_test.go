@@ -38,7 +38,7 @@ var testcases = map[string]string{
 var failures []string
 
 func inject(t *testing.T, root string, packagePattern string) {
-	err := executeCommand("--inject-dump-ir", root, packagePattern)
+	err := executeCommand("--inject", root, packagePattern)
 	require.NoError(t, err)
 }
 
@@ -87,7 +87,7 @@ func TestInstrumentation(t *testing.T) {
 
 	for k, v := range testcases {
 		inject(t, k, filepath.Join(path, k))
-		files := alib.SearchFiles(k, ".go_pass_tracing")
+		files := alib.SearchFiles(k, ".go")
 		expectedFiles := alib.SearchFiles(v, ".go")
 		numOfFiles := len(expectedFiles)
 		fmt.Println("Go Files:", len(files))
@@ -97,7 +97,7 @@ func TestInstrumentation(t *testing.T) {
 			fmt.Println(filepath.Base(file))
 			for _, expectedFile := range expectedFiles {
 				fmt.Println(filepath.Base(expectedFile))
-				if filepath.Base(file) == filepath.Base(expectedFile+"_pass_tracing") {
+				if filepath.Base(file) == filepath.Base(expectedFile) {
 					f1, err1 := os.ReadFile(file)
 					require.NoError(t, err1)
 					f2, err2 := os.ReadFile(expectedFile)
@@ -113,10 +113,10 @@ func TestInstrumentation(t *testing.T) {
 			fmt.Println("numberOfComparisons:", numOfComparisons)
 			panic("not all files were compared")
 		}
-		//	_, err := Prune(k, "./...", false)
-		//	if err != nil {
-		//		fmt.Println("Prune failed")
-		//	}
+		err = executeCommand("--prune", k, filepath.Join(path, k))
+		if err != nil {
+			fmt.Println("Prune failed")
+		}
 	}
 	for _, f := range failures {
 		fmt.Println("FAILURE : ", f)

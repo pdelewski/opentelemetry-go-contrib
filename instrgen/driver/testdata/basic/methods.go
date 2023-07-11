@@ -35,6 +35,7 @@ func (i impl) anotherfoo(p int) int {
 }
 
 func anotherfoo(p int) int {
+
 	return 1
 }
 
