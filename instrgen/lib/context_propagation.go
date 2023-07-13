@@ -82,8 +82,11 @@ func (pass *ContextPropagationPass) Execute(
 			if analysis.GInfo.Uses[ident].Pkg() != nil {
 				pkg = analysis.GInfo.Uses[ident].Pkg().String()
 			}
-			funcCall := FuncDescriptor{pkg, "", ident.Name, ftype.String()}
-			found := analysis.FuncDecls[funcCall]
+			position := analysis.Prog.Fset.Position(analysis.GInfo.Uses[ident].Pos())
+
+			funcCall := FuncDescriptor{pkg, "", ident.Name, ftype.String(),
+				position.Filename, position.Line}
+			found := analysis.FuncsInfo.FuncDecls[funcCall]
 
 			// inject context parameter only
 			// to these functions for which function decl
@@ -125,14 +128,16 @@ func (pass *ContextPropagationPass) Execute(
 
 			var recvStr string
 			if recv != nil {
-				recvStr = "." + recv.Type().String()
+				recvStr = recv.Type().String()
 			}
-			fun := FuncDescriptor{analysis.GInfo.Defs[xNode.Name].Pkg().String(), recvStr, xNode.Name.String(), ftype.String()}
+			position := analysis.Prog.Fset.Position(analysis.GInfo.Defs[xNode.Name].Pos())
+			fun := FuncDescriptor{analysis.GInfo.Defs[xNode.Name].Pkg().String(), recvStr,
+				xNode.Name.String(), ftype.String(), position.Filename, position.Line}
 			currentFun = fun
 			if Contains(analysis.RootFunctions, fun) {
 				break
 			}
-			found := analysis.FuncDecls[fun]
+			found := analysis.FuncsInfo.FuncDecls[fun]
 			if found {
 				fmt.Println("\t\t\tContextPropagation FuncDecl:", fun,
 					ftype)
@@ -157,10 +162,12 @@ func (pass *ContextPropagationPass) Execute(
 					}
 					var recvStr string
 					if len(recv.String()) > 0 {
-						recvStr = "." + recv.String()
+						recvStr = recv.String()
 					}
-					funcCall := FuncDescriptor{obj.Obj().Pkg().String(), recvStr, obj.Obj().Name(), ftypeStr}
-					found := analysis.FuncDecls[funcCall]
+					position := analysis.Prog.Fset.Position(analysis.GInfo.Uses[sel.Sel].Pos())
+					funcCall := FuncDescriptor{obj.Obj().Pkg().String(), recvStr,
+						obj.Obj().Name(), ftypeStr, position.Filename, position.Line}
+					found := analysis.FuncsInfo.FuncDecls[funcCall]
 					// inject context parameter only
 					// to these functions for which function decl
 					// exists
@@ -169,6 +176,21 @@ func (pass *ContextPropagationPass) Execute(
 						fmt.Println("\t\t\tContextPropagation FuncCall:", funcCall, ftype)
 						emitEmptyContext(xNode, funcCall, ctxArg)
 					}
+					for _, impl := range analysis.FuncsInfo.InterfaceImplMapping[recvStr] {
+						position := analysis.Prog.Fset.Position(impl.Pos())
+						implFuncCall := FuncDescriptor{impl.Pkg().String(), impl.Type().String(),
+							obj.Obj().Name(), ftypeStr, position.Filename, position.Line}
+						found := analysis.FuncsInfo.FuncDecls[implFuncCall]
+						// inject context parameter only
+						// to these functions for which function decl
+						// exists
+
+						if found {
+							fmt.Println("\t\t\tContextPropagation FuncCall:", funcCall, ftype)
+							emitEmptyContext(xNode, funcCall, ctxArg)
+						}
+					}
+
 				}
 			}
 
@@ -183,9 +205,10 @@ func (pass *ContextPropagationPass) Execute(
 				if !ok {
 					return true
 				}
+				position := analysis.Prog.Fset.Position(analysis.GInfo.Defs[method.Names[0]].Pos())
 				fun := FuncDescriptor{analysis.GInfo.Defs[method.Names[0]].Id(), "." + analysis.GInfo.Defs[iname].Id(),
 					analysis.GInfo.Defs[method.Names[0]].Name(),
-					analysis.GInfo.Defs[method.Names[0]].Type().String()}
+					analysis.GInfo.Defs[method.Names[0]].Type().String(), position.Filename, position.Line}
 				fmt.Println("\t\t\tContext Propagation InterfaceType", fun)
 				addImports = true
 				funcType.Params.List = append([]*ast.Field{ctxField}, funcType.Params.List...)

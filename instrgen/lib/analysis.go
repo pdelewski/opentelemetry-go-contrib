@@ -35,7 +35,7 @@ type PackageAnalysis struct {
 	ProjectPath    string
 	PackagePattern string
 	RootFunctions  []FuncDescriptor
-	FuncDecls      map[FuncDescriptor]bool
+	FuncsInfo      FuncsInfo
 	Callgraph      map[FuncDescriptor][]FuncDescriptor
 	Interfaces     map[string]types.Object
 	Prog           *loader.Program

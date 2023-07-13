@@ -303,9 +303,11 @@ func (pass *InstrumentationPass) Execute(
 
 			var recvStr string
 			if recv != nil {
-				recvStr = "." + recv.Type().String()
+				recvStr = recv.Type().String()
 			}
-			fun := FuncDescriptor{analysis.GInfo.Defs[x.Name].Pkg().String(), recvStr, x.Name.String(), ftype.String()}
+			position := analysis.Prog.Fset.Position(analysis.GInfo.Defs[x.Name].Pos())
+			fun := FuncDescriptor{analysis.GInfo.Defs[x.Name].Pkg().String(), recvStr,
+				x.Name.String(), ftype.String(), position.Filename, position.Line}
 			for _, root := range analysis.RootFunctions {
 				fmt.Println("\t\t\tInstrumentation FuncDecl:", fun, ftype)
 				if fun.TypeHash() != root.TypeHash() {
@@ -332,7 +334,9 @@ func (pass *InstrumentationPass) Execute(
 					if ftype == nil {
 						return false
 					}
-					fun := FuncDescriptor{node.Name.Name, "", ident.Name, ftype.String()}
+					position := analysis.Prog.Fset.Position(analysis.GInfo.Uses[ident].Pos())
+					fun := FuncDescriptor{node.Name.Name, "", ident.Name,
+						ftype.String(), position.Filename, position.Line}
 					_, exists := analysis.Callgraph[fun]
 					if exists {
 						return false

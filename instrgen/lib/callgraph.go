@@ -28,6 +28,24 @@ type FuncDescriptor struct {
 	Receiver     string
 	FunctionName string
 	FuncType     string
+	FileName     string
+	Line         int
+}
+
+type InterfaceImplMapping = map[string][]*types.Var
+
+// FuncsInfo stores an information about
+// function declarations
+type FuncsInfo struct {
+	FuncDecls            map[FuncDescriptor]bool
+	InterfaceImplMapping InterfaceImplMapping
+}
+
+func makeFuncsInfo() FuncsInfo {
+	return FuncsInfo{
+		FuncDecls:            make(map[FuncDescriptor]bool),
+		InterfaceImplMapping: make(map[string][]*types.Var),
+	}
 }
 
 func (fd FuncDescriptor) Id() string {
@@ -60,43 +78,34 @@ func isAny(obj types.Object) bool {
 	return obj.Type().String() == "any" || obj.Type().Underlying().String() == "any"
 }
 
-func getInterfaceNameForReceiver(interfaces map[string]types.Object, recv *types.Var) types.Object {
+func getInterfaceNameForReceiver(interfaces map[string]types.Object, recv *types.Var) []types.Object {
+	var interfacesMap []types.Object
 	for _, obj := range interfaces {
 		if t, ok := obj.Type().Underlying().(*types.Interface); ok {
 			if types.Implements(recv.Type(), t) && !isAny(obj) {
-				return obj
+				interfacesMap = append(interfacesMap, obj)
 			}
 		}
 	}
-	return nil
+	return interfacesMap
 }
 
-func findRootFunctions(file *ast.File, ginfo *types.Info, interfaces map[string]types.Object, functionLabel string, rootFunctions *[]FuncDescriptor) {
+func findRootFunctions(prog *loader.Program, file *ast.File, ginfo *types.Info, interfaces map[string]types.Object, functionLabel string, rootFunctions *[]FuncDescriptor) {
 	var parentFunc FuncDescriptor
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.FuncDecl:
+			position := prog.Fset.Position(ginfo.Defs[node.Name].Pos())
 			ftype := ginfo.Defs[node.Name].Type()
 			signature := ftype.(*types.Signature)
 			receiver := signature.Recv()
-
-			var interfaceObj types.Object
 			var receiverStr string
-			var interfaceStr string
 			if receiver != nil {
-				receiverStr = "." + receiver.Type().String()
-				interfaceObj = getInterfaceNameForReceiver(interfaces, receiver)
-			}
-			if interfaceObj != nil {
-				interfaceStr = "." + interfaceObj.Type().String()
-			}
-			if interfaceStr != "" {
-				parentFunc = FuncDescriptor{interfaceObj.Pkg().String(),
-					interfaceStr, node.Name.String(), ftype.String()}
-				break
+				receiverStr = receiver.Type().String()
 			}
 			parentFunc = FuncDescriptor{ginfo.Defs[node.Name].Pkg().String(),
-				receiverStr, node.Name.String(), ftype.String()}
+				receiverStr, node.Name.String(), ftype.String(),
+				position.Filename, position.Line}
 
 		case *ast.CallExpr:
 			selector, ok := node.Fun.(*ast.SelectorExpr)
@@ -110,7 +119,9 @@ func findRootFunctions(file *ast.File, ginfo *types.Info, interfaces map[string]
 	})
 }
 
-func findFuncDecls(file *ast.File, ginfo *types.Info, interfaces map[string]types.Object, funcDecls map[FuncDescriptor]bool) {
+func findFuncDecls(prog *loader.Program, file *ast.File,
+	ginfo *types.Info, interfaces map[string]types.Object,
+	funcsInfo FuncsInfo) {
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.FuncDecl:
@@ -118,25 +129,21 @@ func findFuncDecls(file *ast.File, ginfo *types.Info, interfaces map[string]type
 			signature := ftype.(*types.Signature)
 			receiver := signature.Recv()
 
-			var interfaceObj types.Object
-			var receiverStr string
-			var interfaceStr string
-			if receiver != nil {
-				receiverStr = "." + receiver.Type().String()
-				interfaceObj = getInterfaceNameForReceiver(interfaces, receiver)
-			}
-			if interfaceObj != nil {
-				interfaceStr = "." + interfaceObj.Type().String()
-			}
+			var interfaceObjs []types.Object
 
-			if interfaceStr != "" {
-				funcDecl := FuncDescriptor{interfaceObj.Pkg().String(),
-					interfaceStr, node.Name.String(), ftype.String()}
-				funcDecls[funcDecl] = true
+			var receiverStr string
+			if receiver != nil {
+				receiverStr = receiver.Type().String()
+				interfaceObjs = getInterfaceNameForReceiver(interfaces, receiver)
 			}
+			for _, interfaceObj := range interfaceObjs {
+				funcsInfo.InterfaceImplMapping[interfaceObj.Type().String()] = append(funcsInfo.InterfaceImplMapping[interfaceObj.Type().String()], receiver)
+			}
+			position := prog.Fset.Position(node.Name.Pos())
 			funcDecl := FuncDescriptor{ginfo.Defs[node.Name].Pkg().String(),
-				receiverStr, node.Name.String(), ftype.String()}
-			funcDecls[funcDecl] = true
+				receiverStr, node.Name.String(), ftype.String(),
+				position.Filename, position.Line}
+			funcsInfo.FuncDecls[funcDecl] = true
 		}
 		return true
 	})
@@ -158,8 +165,8 @@ func addFuncCallToCallGraph(funcCall FuncDescriptor, currentFun FuncDescriptor,
 	}
 }
 
-func buildCallGraph(file *ast.File, ginfo *types.Info,
-	interfaces map[string]types.Object, funcDecls map[FuncDescriptor]bool,
+func buildCallGraph(prog *loader.Program, file *ast.File, ginfo *types.Info,
+	funcsInfo FuncsInfo,
 	backwardCallGraph map[FuncDescriptor][]FuncDescriptor) {
 	currentFun := FuncDescriptor{}
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -168,13 +175,14 @@ func buildCallGraph(file *ast.File, ginfo *types.Info,
 			ftype := ginfo.Defs[node.Name].Type()
 			signature := ftype.(*types.Signature)
 			recv := signature.Recv()
-
 			var recvStr string
 			if recv != nil {
-				recvStr = "." + recv.Type().String()
+				recvStr = recv.Type().String()
 			}
-
-			currentFun = FuncDescriptor{ginfo.Defs[node.Name].Pkg().String(), recvStr, node.Name.String(), ftype.String()}
+			position := prog.Fset.Position(ginfo.Defs[node.Name].Pos())
+			currentFun = FuncDescriptor{ginfo.Defs[node.Name].Pkg().String(),
+				recvStr, node.Name.String(), ftype.String(),
+				position.Filename, position.Line}
 		case *ast.CallExpr:
 			switch node := node.Fun.(type) {
 			case *ast.Ident:
@@ -183,34 +191,37 @@ func buildCallGraph(file *ast.File, ginfo *types.Info,
 				if ginfo.Uses[node].Pkg() != nil {
 					pkg = ginfo.Uses[node].Pkg().String()
 				}
+				position := prog.Fset.Position(ginfo.Uses[node].Pos())
 				if ftype != nil {
-					funcCall := FuncDescriptor{pkg, "", node.Name, ftype.String()}
-
-					addFuncCallToCallGraph(funcCall, currentFun, funcDecls, backwardCallGraph)
+					funcCall := FuncDescriptor{pkg, "", node.Name, ftype.String(),
+						position.Filename, position.Line}
+					addFuncCallToCallGraph(funcCall, currentFun, funcsInfo.FuncDecls, backwardCallGraph)
 				}
 			case *ast.SelectorExpr:
 				obj := ginfo.Selections[node]
 				if obj != nil {
 					recv := obj.Recv()
-					var ftypeStr string
 					// sel.Sel is function ident
 					ftype := ginfo.Uses[node.Sel]
-
+					var ftypeStr string
 					if ftype != nil {
 						ftypeStr = ftype.Type().String()
-					}
-					var recvStr string
-					if len(recv.String()) > 0 {
-						recvStr = "." + recv.String()
 					}
 					pkg := ""
 					if obj.Obj().Pkg() != nil {
 						pkg = obj.Obj().Pkg().String()
 					}
-					funcCall := FuncDescriptor{pkg, recvStr, obj.Obj().Name(), ftypeStr}
-					addFuncCallToCallGraph(funcCall, currentFun, funcDecls, backwardCallGraph)
+					position := prog.Fset.Position(ginfo.Uses[node.Sel].Pos())
+					funcCall := FuncDescriptor{pkg, recv.String(), obj.Obj().Name(), ftypeStr,
+						position.Filename, position.Line}
+					for _, impl := range funcsInfo.InterfaceImplMapping[recv.String()] {
+						implFuncCall := FuncDescriptor{impl.Pkg().String(), impl.Type().String(),
+							obj.Obj().Name(), ftypeStr,
+							position.Filename, position.Line}
+						addFuncCallToCallGraph(implFuncCall, currentFun, funcsInfo.FuncDecls, backwardCallGraph)
+					}
+					addFuncCallToCallGraph(funcCall, currentFun, funcsInfo.FuncDecls, backwardCallGraph)
 				}
-
 			}
 		}
 		return true
@@ -218,15 +229,17 @@ func buildCallGraph(file *ast.File, ginfo *types.Info,
 	})
 }
 
-func DumpFuncCalls(file *ast.File, ginfo *types.Info) {
+func DumpFuncCalls(prog *loader.Program, file *ast.File, ginfo *types.Info) {
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.CallExpr:
 			switch node := node.Fun.(type) {
 			case *ast.Ident:
+				position := prog.Fset.Position(ginfo.Uses[node].Pos())
 				ftype := ginfo.Uses[node].Type()
 				if ftype != nil {
-					funcCall := FuncDescriptor{ginfo.Defs[node].Pkg().String(), "", node.Name, ftype.String()}
+					funcCall := FuncDescriptor{ginfo.Defs[node].Pkg().String(), "", node.Name,
+						ftype.String(), position.Filename, position.Line}
 					fmt.Println("FuncCall:", funcCall)
 				}
 			case *ast.SelectorExpr:
@@ -244,8 +257,9 @@ func DumpFuncCalls(file *ast.File, ginfo *types.Info) {
 					if len(recv.String()) > 0 {
 						recvStr = "." + recv.String()
 					}
-
-					funcCall := FuncDescriptor{obj.Obj().Pkg().String(), recvStr, obj.Obj().Name(), ftypeStr}
+					position := prog.Fset.Position(ginfo.Uses[node.Sel].Pos())
+					funcCall := FuncDescriptor{obj.Obj().Pkg().String(), recvStr,
+						obj.Obj().Name(), ftypeStr, position.Filename, position.Line}
 					fmt.Println("FuncCall:", funcCall)
 				}
 
@@ -275,14 +289,14 @@ func FindRootFunctions(prog *loader.Program, ginfo *types.Info, interfaces map[s
 				continue
 			}
 			//fmt.Println(prog.Fset.Position(file.Name.Pos()).String())
-			findRootFunctions(file, ginfo, interfaces, "AutotelEntryPoint", &rootFunctions)
+			findRootFunctions(prog, file, ginfo, interfaces, "AutotelEntryPoint", &rootFunctions)
 		}
 	}
 	return rootFunctions
 }
 
-func FindFuncDecls(prog *loader.Program, ginfo *types.Info, interfaces map[string]types.Object, allowedPathPattern string) map[FuncDescriptor]bool {
-	funcDecls := make(map[FuncDescriptor]bool)
+func FindFuncDecls(prog *loader.Program, ginfo *types.Info, interfaces map[string]types.Object, allowedPathPattern string) FuncsInfo {
+	funcsInfo := makeFuncsInfo()
 	for _, pkg := range prog.AllPackages {
 
 		//fmt.Printf("Package path %q\n", pkg.Pkg.Path())
@@ -291,14 +305,14 @@ func FindFuncDecls(prog *loader.Program, ginfo *types.Info, interfaces map[strin
 				continue
 			}
 			//fmt.Println(prog.Fset.Position(file.Name.Pos()).String())
-			findFuncDecls(file, ginfo, interfaces, funcDecls)
+			findFuncDecls(prog, file, ginfo, interfaces, funcsInfo)
 		}
 	}
-	return funcDecls
+	return funcsInfo
 }
 
 func BuildCallGraph(prog *loader.Program, ginfo *types.Info,
-	interfaces map[string]types.Object, funcDecls map[FuncDescriptor]bool, allowedPathPattern string) map[FuncDescriptor][]FuncDescriptor {
+	funcsInfo FuncsInfo, allowedPathPattern string) map[FuncDescriptor][]FuncDescriptor {
 	backwardCallGraph := make(map[FuncDescriptor][]FuncDescriptor)
 	for _, pkg := range prog.AllPackages {
 		//fmt.Printf("Package path %q\n", pkg.Pkg.Path())
@@ -307,7 +321,7 @@ func BuildCallGraph(prog *loader.Program, ginfo *types.Info,
 				continue
 			}
 			//fmt.Println(prog.Fset.Position(file.Name.Pos()).String())
-			buildCallGraph(file, ginfo, interfaces, funcDecls, backwardCallGraph)
+			buildCallGraph(prog, file, ginfo, funcsInfo, backwardCallGraph)
 		}
 	}
 	return backwardCallGraph

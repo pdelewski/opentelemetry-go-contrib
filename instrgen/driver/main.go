@@ -78,9 +78,9 @@ func makeAnalysis(projectPath string, packagePattern string, prog *loader.Progra
 	var rootFunctions []alib.FuncDescriptor
 	interfaces := alib.GetInterfaces(ginfo.Defs)
 	rootFunctions = append(rootFunctions, alib.FindRootFunctions(prog, ginfo, interfaces, packagePattern)...)
-	funcDecls := alib.FindFuncDecls(prog, ginfo, interfaces, packagePattern)
-	alib.DumpFuncDecls(funcDecls)
-	backwardCallGraph := alib.BuildCallGraph(prog, ginfo, interfaces, funcDecls, packagePattern)
+	funcsInfo := alib.FindFuncDecls(prog, ginfo, interfaces, packagePattern)
+	alib.DumpFuncDecls(funcsInfo.FuncDecls)
+	backwardCallGraph := alib.BuildCallGraph(prog, ginfo, funcsInfo, packagePattern)
 	fmt.Println("\n\tchild parent")
 	for k, v := range backwardCallGraph {
 		fmt.Print("\n\t", k)
@@ -91,7 +91,7 @@ func makeAnalysis(projectPath string, packagePattern string, prog *loader.Progra
 		ProjectPath:    projectPath,
 		PackagePattern: packagePattern,
 		RootFunctions:  rootFunctions,
-		FuncDecls:      funcDecls,
+		FuncsInfo:      funcsInfo,
 		Callgraph:      backwardCallGraph,
 		Interfaces:     interfaces,
 		GInfo:          ginfo,
@@ -107,12 +107,11 @@ func Prune(projectPath string, packagePattern string, prog *loader.Program, ginf
 }
 
 func makeCallGraph(packagePattern string, prog *loader.Program, ginfo *types.Info) map[alib.FuncDescriptor][]alib.FuncDescriptor {
-	var funcDecls map[alib.FuncDescriptor]bool
 	var backwardCallGraph map[alib.FuncDescriptor][]alib.FuncDescriptor
 
 	interfaces := alib.GetInterfaces(ginfo.Defs)
-	funcDecls = alib.FindFuncDecls(prog, ginfo, interfaces, packagePattern)
-	backwardCallGraph = alib.BuildCallGraph(prog, ginfo, interfaces, funcDecls, packagePattern)
+	funcsInfo := alib.FindFuncDecls(prog, ginfo, interfaces, packagePattern)
+	backwardCallGraph = alib.BuildCallGraph(prog, ginfo, funcsInfo, packagePattern)
 
 	return backwardCallGraph
 }
