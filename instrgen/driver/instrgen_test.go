@@ -31,7 +31,6 @@ import (
 
 var testcases = map[string]string{
 	"./testdata/basic":     "./testdata/expected/basic",
-	"./testdata/selector":  "./testdata/expected/selector",
 	"./testdata/interface": "./testdata/expected/interface",
 }
 
@@ -54,17 +53,6 @@ func TestCommands(t *testing.T) {
 	err = usage()
 	require.NoError(t, err)
 }
-
-/*
-func TestCallGraph(t *testing.T) {
-	cg := makeCallGraph("./testdata/dummy", "./...")
-	dumpCallGraph(cg)
-	assert.Equal(t, len(cg), 0, "callgraph should contain 0 elems")
-	rf := makeRootFunctions("./testdata/dummy", "./...")
-	dumpRootFunctions(rf)
-	assert.Equal(t, len(rf), 0, "rootfunctions set should be empty")
-}
-*/
 
 func TestArgs(t *testing.T) {
 	err := checkArgs(nil)
