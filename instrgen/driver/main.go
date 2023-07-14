@@ -283,15 +283,22 @@ func compile(args []string) {
 import "fmt"
 func main() {fmt.Println("hello")}`
 	f, _ := os.OpenFile("args", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-
 	argsLen := len(args)
 	var destPath string
 	for i, a := range args {
+		// output directory
 		if a == "-o" {
 			destPath = filepath.Dir(string(args[i+1]))
 			f.WriteString("dest path:" + destPath)
 			f.WriteString("\n")
 		}
+		// package
+		if a == "-p" {
+			pkg := string(args[i+1])
+			f.WriteString("package:" + pkg)
+			f.WriteString("\n")
+		}
+		// source files
 		if a == "-pack" {
 			pathReported := false
 			var files []string
@@ -330,21 +337,31 @@ func main() {fmt.Println("hello")}`
 
 }
 
+func executeCommandProxy(cmdName string) {
+	fmt.Println("autotel compiler")
+	err := checkArgs(os.Args)
+	if err != nil {
+		return
+	}
+	err = executeCommand(os.Args[1], os.Args[2], os.Args[3])
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func main() {
 	args := os.Args[1:]
 	cmdName := GetCommandName(args)
 	if cmdName != "compile" {
-		if cmdName == "--inject" || cmdName == "--prune" {
-			fmt.Println("autotel compiler")
-			err := checkArgs(os.Args)
-			if err != nil {
-				return
-			}
-			err = executeCommand(os.Args[1], os.Args[2], os.Args[3])
-			if err != nil {
-				log.Fatal(err)
-			}
+		switch cmdName {
+		case "--inject":
+		case "--prune":
+		case "--inject-dump-ir":
+		case "--dumpcfg":
+		case "--rootfunctions":
+			executeCommandProxy(cmdName)
 			return
+
 		}
 		executePass(args[0:])
 		return
