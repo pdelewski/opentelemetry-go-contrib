@@ -262,10 +262,10 @@ func inspectFuncs(pkg string, file *ast.File, fset *token.FileSet, trace *os.Fil
 	})
 }
 
-type PackageObserver interface {
+type PackageRewriter interface {
 	Inject(pkg string, filepath string) bool
 	ReplaceSource(pkg string, filePath string) bool
-	Rewrite(pkg string, file *ast.File, fset *token.FileSet)
+	Rewrite(pkg string, file *ast.File, fset *token.FileSet, trace *os.File)
 	WriteExtraFiles(pkg string, filePath string, destPath string)
 }
 
@@ -306,7 +306,8 @@ func createFile(name string) (*os.File, error) {
 
 func analyzePackage(pkg string, filePaths map[string]int, trace *os.File, destPath string, args []string) {
 	fset := token.NewFileSet()
-	rewriter := CommonRewriter{}
+	var rewriter PackageRewriter
+	rewriter = CommonRewriter{}
 
 	for filePath, index := range filePaths {
 		file, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
