@@ -284,7 +284,7 @@ func (CommonRewriter) ReplaceSource(pkg string, filePath string) bool {
 func (CommonRewriter) Rewrite(pkg string, file *ast.File, fset *token.FileSet, trace *os.File) {
 	ast.Inspect(file, func(n ast.Node) bool {
 		if funDeclNode, ok := n.(*ast.FuncDecl); ok {
-			trace.WriteString("Package:" + pkg + " FuncDecl:" + fset.Position(funDeclNode.Pos()).String() + file.Name.Name + "." + funDeclNode.Name.String())
+			trace.WriteString("Package:" + pkg + " FuncDecl:" + fset.Position(funDeclNode.Pos()).String() + ":" + file.Name.Name + "." + funDeclNode.Name.String())
 			trace.WriteString("\n")
 		}
 		return true
@@ -310,50 +310,54 @@ func analyzePackage(pkg string, filePaths map[string]int, trace *os.File, destPa
 
 	for filePath, index := range filePaths {
 		file, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+
 		if err != nil {
 			trace.WriteString(err.Error())
 			trace.WriteString("\n")
+			continue
 		}
 
 		if rewriter.Inject(pkg, filePath) {
 			rewriter.Rewrite(pkg, file, fset, trace)
-		}
 
-		if rewriter.ReplaceSource(pkg, filePath) {
-			var out *os.File
-			out, err = createFile(fset.File(file.Pos()).Name() + "tmp")
-			if err != nil {
-				trace.WriteString(err.Error())
-				trace.WriteString("\n")
+			if rewriter.ReplaceSource(pkg, filePath) {
+				var out *os.File
+				out, err = createFile(fset.File(file.Pos()).Name() + "tmp")
+				if err != nil {
+					trace.WriteString(err.Error())
+					trace.WriteString("\n")
+					continue
+				}
+				err = printer.Fprint(out, fset, file)
+				if err != nil {
+					trace.WriteString(err.Error())
+					trace.WriteString("\n")
+					continue
+				}
+				oldFileName := fset.File(file.Pos()).Name() + "tmp"
+				newFileName := fset.File(file.Pos()).Name()
+				err = os.Rename(oldFileName, newFileName)
+				if err != nil {
+					trace.WriteString(err.Error())
+					trace.WriteString("\n")
+					continue
+				}
+			} else {
+				filename := filepath.Base(filePath)
+				out, err := createFile(destPath + "/" + filename)
+				if err != nil {
+					trace.WriteString(err.Error())
+					trace.WriteString("\n")
+					continue
+				}
+				err = printer.Fprint(out, fset, file)
+				if err != nil {
+					trace.WriteString(err.Error())
+					trace.WriteString("\n")
+					continue
+				}
+				args[index] = destPath + "/" + filename
 			}
-			err = printer.Fprint(out, fset, file)
-			if err != nil {
-				trace.WriteString(err.Error())
-				trace.WriteString("\n")
-			}
-			oldFileName := fset.File(file.Pos()).Name() + "tmp"
-			newFileName := fset.File(file.Pos()).Name()
-			err = os.Rename(oldFileName, newFileName)
-			if err != nil {
-				trace.WriteString(err.Error())
-				trace.WriteString("\n")
-			}
-		} else {
-			filename := filepath.Base(filePath)
-			out, err := createFile(destPath + "/" + filename)
-			if err != nil {
-				trace.WriteString(err.Error())
-				trace.WriteString("\n")
-				continue
-			}
-			err = printer.Fprint(out, fset, file)
-			if err != nil {
-				trace.WriteString(err.Error())
-				trace.WriteString("\n")
-				continue
-			}
-			args[index] = destPath + "/" + filename
-
 		}
 		rewriter.WriteExtraFiles(pkg, filepath.Dir(filePath), destPath)
 	}
