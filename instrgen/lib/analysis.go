@@ -107,35 +107,35 @@ func (analysis *PackageAnalysis) Execute(pass FileAnalysisPass, fileSuffix strin
 			if analysis.PackagePattern != "" && !strings.Contains(analysis.Prog.Fset.Position(file.Name.Pos()).String(), analysis.PackagePattern) {
 				continue
 			}
-			fileNode := file
-			fmt.Println("\t\t", fset.File(fileNode.Pos()).Name())
+
+			fmt.Println("\t\t", fset.File(file.Pos()).Name())
 			var out *os.File
-			out, err := createFile(fset.File(fileNode.Pos()).Name() + fileSuffix)
+			out, err := createFile(fset.File(file.Pos()).Name() + fileSuffix)
 			if err != nil {
 				return nil, err
 			}
 			if len(analysis.RootFunctions) == 0 {
-				e := printer.Fprint(out, fset, fileNode)
+				e := printer.Fprint(out, fset, file)
 				if e != nil {
 					return nil, e
 				}
 				continue
 			}
-			imports := pass.Execute(fileNode, analysis)
-			addImports(imports, fset, fileNode)
-			e := printer.Fprint(out, fset, fileNode)
+			imports := pass.Execute(file, analysis)
+			addImports(imports, fset, file)
+			e := printer.Fprint(out, fset, file)
 			if e != nil {
 				return nil, e
 			}
 			if !analysis.Debug {
-				oldFileName := fset.File(fileNode.Pos()).Name() + fileSuffix
-				newFileName := fset.File(fileNode.Pos()).Name()
+				oldFileName := fset.File(file.Pos()).Name() + fileSuffix
+				newFileName := fset.File(file.Pos()).Name()
 				e = os.Rename(oldFileName, newFileName)
 				if e != nil {
 					return nil, e
 				}
 			}
-			fileNodeSet = append(fileNodeSet, fileNode)
+			fileNodeSet = append(fileNodeSet, file)
 		}
 	}
 	return fileNodeSet, nil

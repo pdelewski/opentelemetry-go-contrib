@@ -20,6 +20,7 @@ import (
 	"go/ast"
 	"go/build"
 	"go/parser"
+	"go/printer"
 	"go/token"
 	"go/types"
 	"golang.org/x/tools/go/loader"
@@ -250,43 +251,116 @@ func GetCommandName(args []string) string {
 	return cmd
 }
 
-func inspectFuncs(pkg string, file *ast.File, fset *token.FileSet, f *os.File) {
+func inspectFuncs(pkg string, file *ast.File, fset *token.FileSet, trace *os.File) {
 	ast.Inspect(file, func(n ast.Node) bool {
 		if funDeclNode, ok := n.(*ast.FuncDecl); ok {
 
-			f.WriteString("Package:" + pkg + " FuncDecl:" + fset.Position(funDeclNode.Pos()).String() + file.Name.Name + "." + funDeclNode.Name.String())
-			f.WriteString("\n")
+			trace.WriteString("Package:" + pkg + " FuncDecl:" + fset.Position(funDeclNode.Pos()).String() + file.Name.Name + "." + funDeclNode.Name.String())
+			trace.WriteString("\n")
 		}
 		return true
 	})
 }
 
-func analyzePackage(pkg string, filePaths map[string]int, f *os.File, destPath string, args []string) {
-	prog := `package main
-import "fmt"
-func main() {fmt.Println("hello2")}`
+type PackageObserver interface {
+	Inject(pkg string, filepath string) bool
+	ReplaceSource(pkg string, filePath string) bool
+	Rewrite(pkg string, file *ast.File, fset *token.FileSet)
+	WriteExtraFiles(pkg string, filePath string, destPath string)
+}
+
+type CommonRewriter struct {
+}
+
+func (CommonRewriter) Inject(pkg string, filepath string) bool {
+
+	return true
+}
+
+func (CommonRewriter) ReplaceSource(pkg string, filePath string) bool {
+	return false
+}
+
+func (CommonRewriter) Rewrite(pkg string, file *ast.File, fset *token.FileSet, trace *os.File) {
+	ast.Inspect(file, func(n ast.Node) bool {
+		if funDeclNode, ok := n.(*ast.FuncDecl); ok {
+			trace.WriteString("Package:" + pkg + " FuncDecl:" + fset.Position(funDeclNode.Pos()).String() + file.Name.Name + "." + funDeclNode.Name.String())
+			trace.WriteString("\n")
+		}
+		return true
+	})
+}
+
+func (CommonRewriter) WriteExtraFiles(pkg string, filePath string, destPath string) {
+
+}
+
+func createFile(name string) (*os.File, error) {
+	var out *os.File
+	out, err := os.Create(name)
+	if err != nil {
+		defer out.Close()
+	}
+	return out, err
+}
+
+func analyzePackage(pkg string, filePaths map[string]int, trace *os.File, destPath string, args []string) {
 	fset := token.NewFileSet()
+	rewriter := CommonRewriter{}
+
 	for filePath, index := range filePaths {
-		file, err := parser.ParseFile(fset, filePath, nil, 0)
+		file, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 		if err != nil {
-			f.WriteString(err.Error())
-			f.WriteString("\n")
+			trace.WriteString(err.Error())
+			trace.WriteString("\n")
 		}
-		filename := filepath.Base(filePath)
-		if filename == "main.go" {
-			f.WriteString("create:" + destPath + "/" + "main.go")
-			f.WriteString("\n")
-			out, _ := os.Create(destPath + "/" + "main.go")
-			out.WriteString(prog)
-			out.Close()
-			args[index] = destPath + "/" + "main.go"
+
+		if rewriter.Inject(pkg, filePath) {
+			rewriter.Rewrite(pkg, file, fset, trace)
 		}
-		inspectFuncs(pkg, file, fset, f)
+
+		if rewriter.ReplaceSource(pkg, filePath) {
+			var out *os.File
+			out, err = createFile(fset.File(file.Pos()).Name() + "tmp")
+			if err != nil {
+				trace.WriteString(err.Error())
+				trace.WriteString("\n")
+			}
+			err = printer.Fprint(out, fset, file)
+			if err != nil {
+				trace.WriteString(err.Error())
+				trace.WriteString("\n")
+			}
+			oldFileName := fset.File(file.Pos()).Name() + "tmp"
+			newFileName := fset.File(file.Pos()).Name()
+			err = os.Rename(oldFileName, newFileName)
+			if err != nil {
+				trace.WriteString(err.Error())
+				trace.WriteString("\n")
+			}
+		} else {
+			filename := filepath.Base(filePath)
+			out, err := createFile(destPath + "/" + filename)
+			if err != nil {
+				trace.WriteString(err.Error())
+				trace.WriteString("\n")
+				continue
+			}
+			err = printer.Fprint(out, fset, file)
+			if err != nil {
+				trace.WriteString(err.Error())
+				trace.WriteString("\n")
+				continue
+			}
+			args[index] = destPath + "/" + filename
+
+		}
+		rewriter.WriteExtraFiles(pkg, filepath.Dir(filePath), destPath)
 	}
 }
 
 func toolExecMain(args []string) {
-	f, _ := os.OpenFile("args", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	trace, _ := os.OpenFile("args", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	argsLen := len(args)
 	var destPath string
 	var pkg string
@@ -313,7 +387,7 @@ func toolExecMain(args []string) {
 				filePath := args[j]
 				files[filePath] = j
 			}
-			analyzePackage(pkg, files, f, destPath, args)
+			analyzePackage(pkg, files, trace, destPath, args)
 		}
 	}
 	executePass(args[0:])
