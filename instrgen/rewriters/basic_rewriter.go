@@ -7,6 +7,8 @@ import (
 )
 
 type BasicRewriter struct {
+	ProjectPath    string
+	PackagePattern string
 }
 
 func (BasicRewriter) Id() string {

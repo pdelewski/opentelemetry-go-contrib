@@ -15,6 +15,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"go.opentelemetry.io/contrib/instrgen/rewriters"
@@ -44,6 +45,11 @@ func usage() error {
 	fmt.Println("\t\tdumpcfg                                (dumps control flow graph)")
 	fmt.Println("\t\trootfunctions                          (dumps root functions)")
 	return nil
+}
+
+type InstrgenCmd struct {
+	ProjectPath    string
+	PackagePattern string
 }
 
 // Load whole go program.
@@ -178,28 +184,14 @@ func executeCommand(command string, projectPath string, packagePattern string) e
 	}
 	switch command {
 	case "--inject":
-		_, err := Prune(projectPath, packagePattern, prog, ginfo, false)
-		if err != nil {
-			return err
+		data := InstrgenCmd{projectPath, packagePattern}
+		file, _ := json.MarshalIndent(data, "", " ")
+		_ = os.WriteFile("instrgen_cmd.json", file, 0644)
+		cmd := exec.Command("go", "build", "-a", "-toolexec", "driver")
+		fmt.Println("invoke : " + cmd.String())
+		if err := cmd.Run(); err != nil {
+			log.Fatal(err)
 		}
-		analysis := makeAnalysis(projectPath, packagePattern, prog, ginfo, false)
-		err = ExecutePasses(analysis)
-		if err != nil {
-			return err
-		}
-		fmt.Println("\tinstrumentation done")
-		return nil
-	case "--inject-dump-ir":
-		_, err := Prune(projectPath, packagePattern, prog, ginfo, true)
-		if err != nil {
-			return err
-		}
-		analysis := makeAnalysis(projectPath, packagePattern, prog, ginfo, true)
-		err = ExecutePassesDumpIr(analysis)
-		if err != nil {
-			return err
-		}
-		fmt.Println("\tinstrumentation done")
 		return nil
 	case "--dumpcfg":
 		backwardCallGraph := makeCallGraph(packagePattern, prog, ginfo)
@@ -321,6 +313,7 @@ func analyzePackage(rewriter alib.PackageRewriter, pkg string, filePaths map[str
 
 func toolExecMain(args []string, rewriter alib.PackageRewriter) {
 	trace, _ := os.OpenFile("args", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
 	argsLen := len(args)
 	var destPath string
 	var pkg string
@@ -350,11 +343,13 @@ func toolExecMain(args []string, rewriter alib.PackageRewriter) {
 			analyzePackage(rewriter, pkg, files, trace, destPath, args)
 		}
 	}
-	executePass(args[0:])
+	if len(args) > 0 {
+		executePass(args[0:])
+	}
 }
 
 func executeCommandProxy(cmdName string) {
-	fmt.Println("autotel compiler")
+	fmt.Println("instrgen compiler")
 	err := checkArgs(os.Args)
 	if err != nil {
 		return
@@ -371,20 +366,43 @@ func main() {
 	if cmdName != "compile" {
 		switch cmdName {
 		case "--inject":
+			executeCommandProxy(cmdName)
+			return
 		case "--prune":
+			executeCommandProxy(cmdName)
+			return
 		case "--inject-dump-ir":
+			executeCommandProxy(cmdName)
+			return
 		case "--dumpcfg":
+			executeCommandProxy(cmdName)
+			return
 		case "--rootfunctions":
 			executeCommandProxy(cmdName)
 			return
 
 		}
-		executePass(args[0:])
+		if len(args) > 0 {
+			executePass(args[0:])
+		}
 		return
 	}
+	content, err := os.ReadFile("./instrgen_cmd.json")
+	if err != nil {
+		log.Fatal("Error when opening file: ", err)
+	}
+
+	var instrgenCfg InstrgenCmd
+	err = json.Unmarshal(content, &instrgenCfg)
+	if err != nil {
+		log.Fatal("Error during Unmarshal(): ", err)
+	}
+
 	var rewriterS []alib.PackageRewriter
-	rewriterS = append(rewriterS, rewriters.RuntimeRewriter{})
-	rewriterS = append(rewriterS, rewriters.BasicRewriter{})
+	rewriterS = append(rewriterS, rewriters.RuntimeRewriter{ProjectPath: instrgenCfg.ProjectPath,
+		PackagePattern: instrgenCfg.PackagePattern})
+	rewriterS = append(rewriterS, rewriters.BasicRewriter{ProjectPath: instrgenCfg.ProjectPath,
+		PackagePattern: instrgenCfg.PackagePattern})
 	for _, rewriter := range rewriterS {
 		toolExecMain(args, rewriter)
 	}
