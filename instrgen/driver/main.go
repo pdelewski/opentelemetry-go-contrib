@@ -345,6 +345,8 @@ func toolExecMain(args []string, rewriter alib.PackageRewriter) {
 	}
 	if len(args) > 0 {
 		executePass(args[0:])
+	} else {
+		usage()
 	}
 }
 
@@ -384,6 +386,8 @@ func main() {
 		}
 		if len(args) > 0 {
 			executePass(args[0:])
+		} else {
+			usage()
 		}
 		return
 	}
