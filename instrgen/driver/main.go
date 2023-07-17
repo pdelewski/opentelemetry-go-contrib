@@ -261,11 +261,10 @@ func createFile(name string) (*os.File, error) {
 	return out, err
 }
 
-func analyzePackage(pkg string, filePaths map[string]int, trace *os.File, destPath string, args []string) {
+func analyzePackage(rewriter alib.PackageRewriter, pkg string, filePaths map[string]int, trace *os.File, destPath string, args []string) {
 	fset := token.NewFileSet()
-	var rewriter alib.PackageRewriter
-	rewriter = rewriters.CommonRewriter{}
-
+	trace.WriteString(rewriter.Id() + " pkg:" + pkg + ":" + destPath)
+	trace.WriteString("\n")
 	for filePath, index := range filePaths {
 		file, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 
@@ -274,7 +273,6 @@ func analyzePackage(pkg string, filePaths map[string]int, trace *os.File, destPa
 			trace.WriteString("\n")
 			continue
 		}
-
 		if rewriter.Inject(pkg, filePath) {
 			rewriter.Rewrite(pkg, file, fset, trace)
 
@@ -316,12 +314,12 @@ func analyzePackage(pkg string, filePaths map[string]int, trace *os.File, destPa
 				}
 				args[index] = destPath + "/" + filename
 			}
+			rewriter.WriteExtraFiles(pkg, filepath.Dir(filePath), destPath)
 		}
-		rewriter.WriteExtraFiles(pkg, filepath.Dir(filePath), destPath)
 	}
 }
 
-func toolExecMain(args []string) {
+func toolExecMain(args []string, rewriter alib.PackageRewriter) {
 	trace, _ := os.OpenFile("args", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	argsLen := len(args)
 	var destPath string
@@ -349,7 +347,7 @@ func toolExecMain(args []string) {
 				filePath := args[j]
 				files[filePath] = j
 			}
-			analyzePackage(pkg, files, trace, destPath, args)
+			analyzePackage(rewriter, pkg, files, trace, destPath, args)
 		}
 	}
 	executePass(args[0:])
@@ -384,5 +382,10 @@ func main() {
 		executePass(args[0:])
 		return
 	}
-	toolExecMain(args)
+	var rewriterS []alib.PackageRewriter
+	rewriterS = append(rewriterS, rewriters.RuntimeRewriter{})
+	rewriterS = append(rewriterS, rewriters.BasicRewriter{})
+	for _, rewriter := range rewriterS {
+		toolExecMain(args, rewriter)
+	}
 }

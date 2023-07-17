@@ -21,6 +21,7 @@ import (
 )
 
 type PackageRewriter interface {
+	Id() string
 	Inject(pkg string, filepath string) bool
 	ReplaceSource(pkg string, filePath string) bool
 	Rewrite(pkg string, file *ast.File, fset *token.FileSet, trace *os.File)
