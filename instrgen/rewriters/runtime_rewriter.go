@@ -26,12 +26,6 @@ func (RuntimeRewriter) ReplaceSource(pkg string, filePath string) bool {
 
 func (RuntimeRewriter) Rewrite(pkg string, file *ast.File, fset *token.FileSet, trace *os.File) {
 	ast.Inspect(file, func(n ast.Node) bool {
-		if funDeclNode, ok := n.(*ast.FuncDecl); ok {
-			_ = funDeclNode
-			trace.WriteString("RuntimeRewriter Package:" + pkg + " FuncDecl:" + fset.Position(funDeclNode.Pos()).String() + ":" + file.Name.Name + "." + funDeclNode.Name.String())
-			trace.WriteString("\n")
-
-		}
 		switch n := n.(type) {
 		case *ast.TypeSpec:
 			if n.Name != nil && n.Name.Name != "g" {
