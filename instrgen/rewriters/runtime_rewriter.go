@@ -47,6 +47,61 @@ func (RuntimeRewriter) Rewrite(pkg string, file *ast.File, fset *token.FileSet, 
 				},
 			}
 			st.Fields.List = append(st.Fields.List, s1)
+		case *ast.FuncDecl:
+			if n.Name.Name != "newproc1" {
+				return false
+			}
+			if len(n.Type.Results.List) != 1 {
+				return false
+			}
+			if len(n.Type.Params.List) != 3 {
+				return false
+			}
+			deferStmt := &ast.DeferStmt{
+				Defer: 27,
+				Call: &ast.CallExpr{
+					Fun: &ast.FuncLit{
+						Type: &ast.FuncType{
+							Func:   33,
+							Params: &ast.FieldList{},
+						},
+						Body: &ast.BlockStmt{
+							List: []ast.Stmt{
+								&ast.AssignStmt{
+									Lhs: []ast.Expr{
+										&ast.SelectorExpr{
+											X: &ast.Ident{
+												Name: "instrgen_result",
+											},
+											Sel: &ast.Ident{
+												Name: "_tls_instrgen",
+											},
+										},
+									},
+									Tok: token.ASSIGN,
+									Rhs: []ast.Expr{
+										&ast.SelectorExpr{
+											X: &ast.Ident{
+												Name: "callergp",
+											},
+											Sel: &ast.Ident{
+												Name: "_tls_instrgen",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Lparen:   94,
+					Ellipsis: 0,
+				},
+			}
+
+			n.Body.List = append([]ast.Stmt{deferStmt}, n.Body.List...)
+			n.Type.Results.List[0].Names = append(n.Type.Results.List[0].Names, &ast.Ident{
+				Name: "instrgen_result",
+			})
 		}
 
 		return true
