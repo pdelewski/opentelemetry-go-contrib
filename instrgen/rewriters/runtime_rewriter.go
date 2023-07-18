@@ -3,6 +3,7 @@ package rewriters
 import (
 	"go/ast"
 	"go/token"
+	"log"
 	"os"
 )
 
@@ -109,5 +110,20 @@ func (RuntimeRewriter) Rewrite(pkg string, file *ast.File, fset *token.FileSet, 
 }
 
 func (RuntimeRewriter) WriteExtraFiles(pkg string, destPath string) {
+	ctx_propagation := `package runtime
 
+func InstrgenGetTls interface{} {
+        return getg().m.curg._tls_instrgen
+}
+
+func InstrgenSetTls(tls interface{}) {
+        getg().m.curg._tls_instrgen = tls
+}
+`
+	f, err := os.Create(destPath + "/" + "instrgen_tls.go")
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	f.WriteString(ctx_propagation)
 }
