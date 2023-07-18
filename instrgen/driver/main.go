@@ -187,7 +187,7 @@ func executeCommand(command string, projectPath string, packagePattern string) e
 		data := InstrgenCmd{projectPath, packagePattern}
 		file, _ := json.MarshalIndent(data, "", " ")
 		_ = os.WriteFile("instrgen_cmd.json", file, 0644)
-		cmd := exec.Command("go", "build", "-a", "-toolexec", "driver")
+		cmd := exec.Command("go", "build", "-work", "-a", "-toolexec", "driver")
 		fmt.Println("invoke : " + cmd.String())
 		if err := cmd.Run(); err != nil {
 			log.Fatal(err)
