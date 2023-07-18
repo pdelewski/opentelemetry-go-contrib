@@ -34,6 +34,6 @@ func (BasicRewriter) Rewrite(pkg string, file *ast.File, fset *token.FileSet, tr
 	})
 }
 
-func (BasicRewriter) WriteExtraFiles(pkg string, filePath string, destPath string) {
+func (BasicRewriter) WriteExtraFiles(pkg string, destPath string) {
 
 }

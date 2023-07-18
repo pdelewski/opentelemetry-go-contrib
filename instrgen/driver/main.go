@@ -306,7 +306,7 @@ func analyzePackage(rewriter alib.PackageRewriter, pkg string, filePaths map[str
 				}
 				args[index] = destPath + "/" + filename
 			}
-			rewriter.WriteExtraFiles(pkg, filepath.Dir(filePath), destPath)
+			rewriter.WriteExtraFiles(pkg, destPath)
 		}
 	}
 }

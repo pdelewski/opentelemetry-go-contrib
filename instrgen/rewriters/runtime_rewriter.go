@@ -108,6 +108,6 @@ func (RuntimeRewriter) Rewrite(pkg string, file *ast.File, fset *token.FileSet, 
 	})
 }
 
-func (RuntimeRewriter) WriteExtraFiles(pkg string, filePath string, destPath string) {
+func (RuntimeRewriter) WriteExtraFiles(pkg string, destPath string) {
 
 }
