@@ -205,6 +205,40 @@ func makeSpanStmts(name string, paramName string) []ast.Stmt {
 	s1 := &ast.AssignStmt{
 		Lhs: []ast.Expr{
 			&ast.Ident{
+				Name: "__atel_tracing_ctx",
+			},
+		},
+		Tok: token.DEFINE,
+		Rhs: []ast.Expr{
+			&ast.TypeAssertExpr{
+				X: &ast.CallExpr{
+					Fun: &ast.SelectorExpr{
+						X: &ast.Ident{
+							Name: "__atel_runtime",
+						},
+						Sel: &ast.Ident{
+							Name: "InstrgenGetTls",
+						},
+					},
+					Lparen:   78,
+					Ellipsis: 0,
+				},
+				Lparen: 81,
+				Type: &ast.SelectorExpr{
+					X: &ast.Ident{
+						Name: "__atel_context",
+					},
+					Sel: &ast.Ident{
+						Name: "Context",
+					},
+				},
+			},
+		},
+	}
+
+	s2 := &ast.AssignStmt{
+		Lhs: []ast.Expr{
+			&ast.Ident{
 				Name: "__atel_child_tracing_ctx",
 			},
 			&ast.Ident{
@@ -249,8 +283,7 @@ func makeSpanStmts(name string, paramName string) []ast.Stmt {
 			},
 		},
 	}
-
-	s2 := &ast.AssignStmt{
+	s3 := &ast.AssignStmt{
 		Lhs: []ast.Expr{
 			&ast.Ident{
 				Name: "_",
@@ -264,7 +297,7 @@ func makeSpanStmts(name string, paramName string) []ast.Stmt {
 		},
 	}
 
-	s3 := &ast.DeferStmt{
+	s4 := &ast.DeferStmt{
 		Defer: 27,
 		Call: &ast.CallExpr{
 			Fun: &ast.SelectorExpr{
@@ -279,7 +312,7 @@ func makeSpanStmts(name string, paramName string) []ast.Stmt {
 			Ellipsis: 0,
 		},
 	}
-	stmts := []ast.Stmt{s1, s2, s3}
+	stmts := []ast.Stmt{s1, s2, s3, s4}
 	return stmts
 }
 
@@ -304,18 +337,13 @@ func (b BasicRewriter) Rewrite(pkg string, file *ast.File, fset *token.FileSet, 
 	ast.Inspect(file, func(n ast.Node) bool {
 		if funDeclNode, ok := n.(*ast.FuncDecl); ok {
 			if pkg == "main" && funDeclNode.Name.Name == "main" {
-				trace.WriteString("Basic Package:" + pkg + " FuncDecl:" + fset.Position(funDeclNode.Pos()).String() + ":" + file.Name.Name + "." + funDeclNode.Name.String())
-				trace.WriteString("\n")
 				funDeclNode.Body.List = append(makeInitStmts(funDeclNode.Name.Name), funDeclNode.Body.List...)
-				astutil.AddNamedImport(fset, file, "__atel_context", "context")
-				astutil.AddNamedImport(fset, file, "__atel_otel", "go.opentelemetry.io/otel")
-				astutil.AddNamedImport(fset, file, "__atel_runtime", "runtime")
-
 			} else {
-				//				funDeclNode.Body.List = append(makeSpanStmts(funDeclNode.Name.Name, "__atel_tracing_ctx"), funDeclNode.Body.List...)
+				funDeclNode.Body.List = append(makeSpanStmts(funDeclNode.Name.Name, "__atel_tracing_ctx"), funDeclNode.Body.List...)
 			}
-			//			astutil.AddNamedImport(fset, file, "__atel_context", "context")
-			//			astutil.AddNamedImport(fset, file, "__atel_otel", "go.opentelemetry.io/otel")
+			astutil.AddNamedImport(fset, file, "__atel_context", "context")
+			astutil.AddNamedImport(fset, file, "__atel_otel", "go.opentelemetry.io/otel")
+			astutil.AddNamedImport(fset, file, "__atel_runtime", "runtime")
 		}
 		return true
 	})
