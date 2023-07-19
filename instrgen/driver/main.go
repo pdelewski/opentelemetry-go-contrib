@@ -253,10 +253,11 @@ func createFile(name string) (*os.File, error) {
 	return out, err
 }
 
-func analyzePackage(rewriter alib.PackageRewriter, pkg string, filePaths map[string]int, trace *os.File, destPath string, args []string) {
+func analyzePackage(rewriter alib.PackageRewriter, pkg string, filePaths map[string]int, trace *os.File, destPath string, args []string) []string {
 	fset := token.NewFileSet()
 	trace.WriteString(rewriter.Id() + " pkg:" + pkg + ":" + destPath)
 	trace.WriteString("\n")
+	extraFilesWritten := false
 	for filePath, index := range filePaths {
 		file, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 
@@ -306,17 +307,26 @@ func analyzePackage(rewriter alib.PackageRewriter, pkg string, filePaths map[str
 				}
 				args[index] = destPath + "/" + filename
 			}
-			rewriter.WriteExtraFiles(pkg, destPath)
+			if !extraFilesWritten {
+				files := rewriter.WriteExtraFiles(pkg, destPath)
+				if files != nil && len(files) > 0 {
+					args = append(args, files...)
+				}
+				extraFilesWritten = true
+			}
 		}
 	}
+
+	return args
 }
 
-func toolExecMain(args []string, rewriter alib.PackageRewriter) {
+func toolExecMain(args []string, rewriterS []alib.PackageRewriter) {
 	trace, _ := os.OpenFile("args", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 	argsLen := len(args)
 	var destPath string
 	var pkg string
+
 	for i, a := range args {
 		// output directory
 		if a == "-o" {
@@ -340,7 +350,9 @@ func toolExecMain(args []string, rewriter alib.PackageRewriter) {
 				filePath := args[j]
 				files[filePath] = j
 			}
-			analyzePackage(rewriter, pkg, files, trace, destPath, args)
+			for _, rewriter := range rewriterS {
+				args = analyzePackage(rewriter, pkg, files, trace, destPath, args)
+			}
 		}
 	}
 	if len(args) > 0 {
@@ -407,7 +419,5 @@ func main() {
 		PackagePattern: instrgenCfg.PackagePattern})
 	rewriterS = append(rewriterS, rewriters.BasicRewriter{ProjectPath: instrgenCfg.ProjectPath,
 		PackagePattern: instrgenCfg.PackagePattern})
-	for _, rewriter := range rewriterS {
-		toolExecMain(args, rewriter)
-	}
+	toolExecMain(args, rewriterS)
 }

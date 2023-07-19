@@ -109,13 +109,19 @@ func (RuntimeRewriter) Rewrite(pkg string, file *ast.File, fset *token.FileSet, 
 	})
 }
 
-func (RuntimeRewriter) WriteExtraFiles(pkg string, destPath string) {
+func (RuntimeRewriter) WriteExtraFiles(pkg string, destPath string) []string {
 	ctx_propagation := `package runtime
 
-func InstrgenGetTls interface{} {
+import (
+        _ "unsafe"
+)
+
+//go:nosplit
+func InstrgenGetTls() interface{} {
         return getg().m.curg._tls_instrgen
 }
 
+//go:nosplit
 func InstrgenSetTls(tls interface{}) {
         getg().m.curg._tls_instrgen = tls
 }
@@ -123,7 +129,8 @@ func InstrgenSetTls(tls interface{}) {
 	f, err := os.Create(destPath + "/" + "instrgen_tls.go")
 	if err != nil {
 		log.Fatal(err)
-		return
+		return nil
 	}
 	f.WriteString(ctx_propagation)
+	return []string{destPath + "/" + "instrgen_tls.go"}
 }

@@ -25,5 +25,5 @@ type PackageRewriter interface {
 	Inject(pkg string, filepath string) bool
 	ReplaceSource(pkg string, filePath string) bool
 	Rewrite(pkg string, file *ast.File, fset *token.FileSet, trace *os.File)
-	WriteExtraFiles(pkg string, destPath string)
+	WriteExtraFiles(pkg string, destPath string) []string
 }
