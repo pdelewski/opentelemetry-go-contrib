@@ -17,6 +17,8 @@ package main
 
 import (
 	"os"
+	_ "go.opentelemetry.io/otel"
+	_ "context"
 )
 
 func Close() error {
