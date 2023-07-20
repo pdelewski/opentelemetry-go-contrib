@@ -15,6 +15,7 @@
 package rewriters
 
 import (
+	"go.opentelemetry.io/contrib/instrgen/lib"
 	"go/ast"
 	"go/token"
 	"log"
@@ -140,6 +141,9 @@ func InstrgenSetTls(tls interface{}) {
         getg().m.curg._tls_instrgen = tls
 }
 `
+	if lib.FileExists(destPath + "/" + "instrgen_tls.go") {
+		return nil
+	}
 	f, err := os.Create(destPath + "/" + "instrgen_tls.go")
 	if err != nil {
 		log.Fatal(err)

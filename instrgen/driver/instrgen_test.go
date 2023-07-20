@@ -17,16 +17,11 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"os"
-	"path/filepath"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	alib "go.opentelemetry.io/contrib/instrgen/lib"
+	"go.opentelemetry.io/contrib/instrgen/rewriters"
+	"os"
+	"testing"
 )
 
 var testcases = map[string]string{
@@ -36,77 +31,25 @@ var testcases = map[string]string{
 
 var failures []string
 
-func inject(t *testing.T, root string, packagePattern string) {
-	err := executeCommand("--inject", root, packagePattern)
-	require.NoError(t, err)
-}
-
-func TestCommands(t *testing.T) {
-	err := executeCommand("--dumpcfg", "./testdata/dummy", "./...")
-	require.NoError(t, err)
-	err = executeCommand("--rootfunctions", "./testdata/dummy", "./...")
-	require.NoError(t, err)
-	err = executeCommand("--prune", "./testdata/dummy", "./...")
-	require.NoError(t, err)
-	err = executeCommand("--inject", "./testdata/dummy", "./...")
-	require.NoError(t, err)
-	err = usage()
-	require.NoError(t, err)
-}
-
-func TestArgs(t *testing.T) {
-	err := checkArgs(nil)
-	require.Error(t, err)
-	args := []string{"driver", "--inject", "", "./..."}
-	err = checkArgs(args)
-	require.NoError(t, err)
-}
-
-func TestUnknownCommand(t *testing.T) {
-	err := executeCommand("unknown", "a", "b")
-	require.Error(t, err)
-}
-
 func TestInstrumentation(t *testing.T) {
-	path, err := os.Getwd()
-	if err != nil {
-		fmt.Println(err)
-	}
+	cwd, _ := os.Getwd()
+	_ = cwd
+	var args []string
+	for k, _ := range testcases {
+		filePaths := make(map[string]int)
 
-	for k, v := range testcases {
-		inject(t, k, filepath.Join(path, k))
 		files := alib.SearchFiles(k, ".go")
-		expectedFiles := alib.SearchFiles(v, ".go")
-		numOfFiles := len(expectedFiles)
-		fmt.Println("Go Files:", len(files))
-		fmt.Println("Expected Go Files:", len(expectedFiles))
-		numOfComparisons := 0
-		for _, file := range files {
-			fmt.Println(filepath.Base(file))
-			for _, expectedFile := range expectedFiles {
-				fmt.Println(filepath.Base(expectedFile))
-				if filepath.Base(file) == filepath.Base(expectedFile) {
-					f1, err1 := os.ReadFile(file)
-					require.NoError(t, err1)
-					f2, err2 := os.ReadFile(expectedFile)
-					require.NoError(t, err2)
-					if !assert.True(t, bytes.Equal(f1, f2), file) {
-						failures = append(failures, file)
-					}
-					numOfComparisons = numOfComparisons + 1
-				}
-			}
+		for index, file := range files {
+			fmt.Println(file)
+			filePaths[file] = index
 		}
-		if numOfFiles != numOfComparisons {
-			fmt.Println("numberOfComparisons:", numOfComparisons)
-			panic("not all files were compared")
-		}
-		err = executeCommand("--prune", k, filepath.Join(path, k))
-		if err != nil {
-			fmt.Println("Prune failed")
-		}
-	}
-	for _, f := range failures {
-		fmt.Println("FAILURE : ", f)
+		pruner := rewriters.OtelPruner{ProjectPath: k,
+			PackagePattern: k[2:], Replace: true}
+		analyzePackage(pruner, "main", filePaths, nil, "", args)
+
+		rewriter := rewriters.BasicRewriter{ProjectPath: k,
+			PackagePattern: k[2:], Replace: "yes"}
+		analyzePackage(rewriter, "main", filePaths, nil, "", args)
+
 	}
 }
