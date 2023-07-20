@@ -37,7 +37,7 @@ import (
 )
 
 func usage() error {
-	fmt.Println("\nusage driver --command [path to go project] [package pattern]")
+	fmt.Println("\nusage driver --command [path to go project] [package pattern] replace")
 	fmt.Println("\tcommand:")
 	fmt.Println("\t\tinject                                 (injects open telemetry calls into project code)")
 	fmt.Println("\t\tinject-dump-ir                         (injects open telemetry calls into project code and intermediate passes)")
@@ -50,6 +50,8 @@ func usage() error {
 type InstrgenCmd struct {
 	ProjectPath    string
 	PackagePattern string
+	Cmd            string
+	Replace        string
 }
 
 // Load whole go program.
@@ -83,38 +85,6 @@ func LoadProgram(projectPath string, ginfo *types.Info) (*loader.Program, error)
 	}
 	return conf.Load()
 
-}
-
-func makeAnalysis(projectPath string, packagePattern string, prog *loader.Program, ginfo *types.Info, debug bool) *alib.PackageAnalysis {
-	var rootFunctions []alib.FuncDescriptor
-	interfaces := alib.GetInterfaces(ginfo.Defs)
-	rootFunctions = append(rootFunctions, alib.FindRootFunctions(prog, ginfo, interfaces, packagePattern)...)
-	funcsInfo := alib.FindFuncDecls(prog, ginfo, interfaces, packagePattern)
-	alib.DumpFuncDecls(funcsInfo.FuncDecls)
-	backwardCallGraph := alib.BuildCallGraph(prog, ginfo, funcsInfo, packagePattern)
-	fmt.Println("\n\tchild parent")
-	for k, v := range backwardCallGraph {
-		fmt.Print("\n\t", k)
-		fmt.Print(" ", v)
-	}
-	fmt.Println("")
-	analysis := &alib.PackageAnalysis{
-		ProjectPath:    projectPath,
-		PackagePattern: packagePattern,
-		RootFunctions:  rootFunctions,
-		FuncsInfo:      funcsInfo,
-		Callgraph:      backwardCallGraph,
-		Interfaces:     interfaces,
-		GInfo:          ginfo,
-		Prog:           prog,
-		Debug:          debug}
-	return analysis
-}
-
-// Prune.
-func Prune(projectPath string, packagePattern string, prog *loader.Program, ginfo *types.Info, debug bool) ([]*ast.File, error) {
-	analysis := makeAnalysis(projectPath, packagePattern, prog, ginfo, debug)
-	return analysis.Execute(&alib.OtelPruner{}, otelPrunerPassSuffix)
 }
 
 func makeCallGraph(packagePattern string, prog *loader.Program, ginfo *types.Info) map[alib.FuncDescriptor][]alib.FuncDescriptor {
@@ -162,7 +132,7 @@ func isDirectory(path string) (bool, error) {
 // decls and infer function bodies to find call to AutotelEntryPoint
 // A parent function of this call will become root of instrumentation
 // Each function call from this place will be instrumented automatically.
-func executeCommand(command string, projectPath string, packagePattern string) error {
+func executeCommand(command string, projectPath string, packagePattern string, replaceSource string) error {
 	isDir, err := isDirectory(projectPath)
 	if !isDir {
 		_ = usage()
@@ -177,14 +147,42 @@ func executeCommand(command string, projectPath string, packagePattern string) e
 		Selections: make(map[*ast.SelectorExpr]*types.Selection),
 	}
 
-	prog, err := LoadProgram(projectPath, ginfo)
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
 	switch command {
 	case "--inject":
-		data := InstrgenCmd{projectPath, packagePattern}
+		data := InstrgenCmd{projectPath, packagePattern, "inject", replaceSource}
+		file, _ := json.MarshalIndent(data, "", " ")
+		err = os.WriteFile("instrgen_cmd.json", file, 0644)
+		if err != nil {
+			log.Fatal(err)
+			return nil
+		}
+		cmd := exec.Command("go", "build", "-work", "-a", "-toolexec", "driver")
+		fmt.Println("invoke : " + cmd.String())
+		if err := cmd.Run(); err != nil {
+			log.Fatal(err)
+		}
+		return nil
+	case "--dumpcfg":
+		prog, err := LoadProgram(projectPath, ginfo)
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
+
+		backwardCallGraph := makeCallGraph(packagePattern, prog, ginfo)
+		dumpCallGraph(backwardCallGraph)
+		return nil
+	case "--rootfunctions":
+		prog, err := LoadProgram(projectPath, ginfo)
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
+		rootFunctions := makeRootFunctions(prog, ginfo, packagePattern)
+		dumpRootFunctions(rootFunctions)
+		return nil
+	case "--prune":
+		data := InstrgenCmd{projectPath, packagePattern, "prune", "yes"}
 		file, _ := json.MarshalIndent(data, "", " ")
 		_ = os.WriteFile("instrgen_cmd.json", file, 0644)
 		cmd := exec.Command("go", "build", "-work", "-a", "-toolexec", "driver")
@@ -193,27 +191,13 @@ func executeCommand(command string, projectPath string, packagePattern string) e
 			log.Fatal(err)
 		}
 		return nil
-	case "--dumpcfg":
-		backwardCallGraph := makeCallGraph(packagePattern, prog, ginfo)
-		dumpCallGraph(backwardCallGraph)
-		return nil
-	case "--rootfunctions":
-		rootFunctions := makeRootFunctions(prog, ginfo, packagePattern)
-		dumpRootFunctions(rootFunctions)
-		return nil
-	case "--prune":
-		_, err := Prune(projectPath, packagePattern, prog, ginfo, false)
-		if err != nil {
-			return err
-		}
-		return nil
 	default:
 		return errors.New("unknown command")
 	}
 }
 
 func checkArgs(args []string) error {
-	if len(args) != 4 {
+	if len(args) < 4 {
 		_ = usage()
 		return errors.New("wrong arguments")
 	}
@@ -368,7 +352,11 @@ func executeCommandProxy(cmdName string) {
 	if err != nil {
 		return
 	}
-	err = executeCommand(os.Args[1], os.Args[2], os.Args[3])
+	replace := "no"
+	if len(os.Args) > 4 {
+		replace = os.Args[4]
+	}
+	err = executeCommand(os.Args[1], os.Args[2], os.Args[3], replace)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -415,9 +403,15 @@ func main() {
 	}
 
 	var rewriterS []alib.PackageRewriter
-	rewriterS = append(rewriterS, rewriters.RuntimeRewriter{ProjectPath: instrgenCfg.ProjectPath,
-		PackagePattern: instrgenCfg.PackagePattern})
-	rewriterS = append(rewriterS, rewriters.BasicRewriter{ProjectPath: instrgenCfg.ProjectPath,
-		PackagePattern: instrgenCfg.PackagePattern})
+	switch instrgenCfg.Cmd {
+	case "inject":
+		rewriterS = append(rewriterS, rewriters.RuntimeRewriter{ProjectPath: instrgenCfg.ProjectPath,
+			PackagePattern: instrgenCfg.PackagePattern})
+		rewriterS = append(rewriterS, rewriters.BasicRewriter{ProjectPath: instrgenCfg.ProjectPath,
+			PackagePattern: instrgenCfg.PackagePattern, Replace: instrgenCfg.Replace})
+	case "prune":
+		rewriterS = append(rewriterS, rewriters.OtelPruner{ProjectPath: instrgenCfg.ProjectPath,
+			PackagePattern: instrgenCfg.PackagePattern, Replace: true})
+	}
 	toolExecMain(args, rewriterS)
 }
