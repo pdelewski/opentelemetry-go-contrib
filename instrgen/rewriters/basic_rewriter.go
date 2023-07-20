@@ -196,7 +196,7 @@ func makeInitStmts(name string) []ast.Stmt {
 			Ellipsis: 0,
 		},
 	}
-	_ = s7
+
 	stmts := []ast.Stmt{s1, s2, s3, s4, s5, childTracingSupress, s6, s7}
 	return stmts
 }
@@ -283,17 +283,23 @@ func makeSpanStmts(name string, paramName string) []ast.Stmt {
 			},
 		},
 	}
-	s3 := &ast.AssignStmt{
-		Lhs: []ast.Expr{
-			&ast.Ident{
-				Name: "_",
+	s3 := &ast.ExprStmt{
+		X: &ast.CallExpr{
+			Fun: &ast.SelectorExpr{
+				X: &ast.Ident{
+					Name: "__atel_runtime",
+				},
+				Sel: &ast.Ident{
+					Name: "InstrgenSetTls",
+				},
 			},
-		},
-		Tok: token.ASSIGN,
-		Rhs: []ast.Expr{
-			&ast.Ident{
-				Name: "__atel_child_tracing_ctx",
+			Lparen: 56,
+			Args: []ast.Expr{
+				&ast.Ident{
+					Name: "__atel_child_tracing_ctx",
+				},
 			},
+			Ellipsis: 0,
 		},
 	}
 
