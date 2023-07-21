@@ -17,8 +17,9 @@ import (
 	"fmt"
 	"go/ast"
 	"go/types"
-	"golang.org/x/tools/go/loader"
 	"strings"
+
+	"golang.org/x/tools/go/loader"
 )
 
 // FuncDescriptor stores an information about
@@ -32,10 +33,11 @@ type FuncDescriptor struct {
 	Line         int
 }
 
+// InterfaceImplMapping. Mapping interface to implementation.
 type InterfaceImplMapping = map[string][]*types.Var
 
 // FuncsInfo stores an information about
-// function declarations
+// function declarations.
 type FuncsInfo struct {
 	FuncDecls            map[FuncDescriptor]bool
 	InterfaceImplMapping InterfaceImplMapping
@@ -48,16 +50,19 @@ func makeFuncsInfo() FuncsInfo {
 	}
 }
 
+// Id. FunctionId.
 func (fd FuncDescriptor) Id() string {
 	recvStr := fd.Receiver
 	return fd.PackageName + recvStr + "." + fd.FunctionName + "." + fd.FuncType
 }
 
+// TypeHash. Function hash.
 func (fd FuncDescriptor) TypeHash() string {
 	recvStr := fd.Receiver
 	return fd.PackageName + recvStr + "." + fd.FunctionName + "." + fd.FuncType
 }
 
+// GetInterfaces returns all interfaces.
 func GetInterfaces(defs map[*ast.Ident]types.Object) map[string]types.Object {
 	interfaces := make(map[string]types.Object)
 	for id, obj := range defs {
@@ -123,8 +128,7 @@ func findFuncDecls(prog *loader.Program, file *ast.File,
 	ginfo *types.Info, interfaces map[string]types.Object,
 	funcsInfo FuncsInfo) {
 	ast.Inspect(file, func(n ast.Node) bool {
-		switch node := n.(type) {
-		case *ast.FuncDecl:
+		if node, ok := n.(*ast.FuncDecl); ok {
 			ftype := ginfo.Defs[node.Name].Type()
 			signature := ftype.(*types.Signature)
 			receiver := signature.Recv()
@@ -149,9 +153,10 @@ func findFuncDecls(prog *loader.Program, file *ast.File,
 	})
 }
 
+// Dumps all funcdels.
 func DumpFuncDecls(funcDecls map[FuncDescriptor]bool) {
 	fmt.Println("FuncDecls")
-	for fun, _ := range funcDecls {
+	for fun := range funcDecls {
 		fmt.Println(fun)
 	}
 }
@@ -225,14 +230,13 @@ func buildCallGraph(prog *loader.Program, file *ast.File, ginfo *types.Info,
 			}
 		}
 		return true
-
 	})
 }
 
+// Dumps fun calls.
 func DumpFuncCalls(prog *loader.Program, file *ast.File, ginfo *types.Info) {
 	ast.Inspect(file, func(n ast.Node) bool {
-		switch node := n.(type) {
-		case *ast.CallExpr:
+		if node, ok := n.(*ast.CallExpr); ok {
 			switch node := node.Fun.(type) {
 			case *ast.Ident:
 				position := prog.Fset.Position(ginfo.Uses[node].Pos())
@@ -262,14 +266,13 @@ func DumpFuncCalls(prog *loader.Program, file *ast.File, ginfo *types.Info) {
 						obj.Obj().Name(), ftypeStr, position.Filename, position.Line}
 					fmt.Println("FuncCall:", funcCall)
 				}
-
 			}
 		}
 		return true
-
 	})
 }
 
+// Dumps call graph.
 func DumpCallGraph(backwardCallGraph map[FuncDescriptor][]FuncDescriptor) {
 	fmt.Println("\n\tchild parent")
 	for k, v := range backwardCallGraph {
@@ -279,10 +282,10 @@ func DumpCallGraph(backwardCallGraph map[FuncDescriptor][]FuncDescriptor) {
 	fmt.Print("\n")
 }
 
+// Finds entry points.
 func FindRootFunctions(prog *loader.Program, ginfo *types.Info, interfaces map[string]types.Object, allowedPathPattern string) []FuncDescriptor {
 	var rootFunctions []FuncDescriptor
 	for _, pkg := range prog.AllPackages {
-
 		//fmt.Printf("Package path %q\n", pkg.Pkg.Path())
 		for _, file := range pkg.Files {
 			if allowedPathPattern != "" && !strings.Contains(prog.Fset.Position(file.Name.Pos()).String(), allowedPathPattern) {
@@ -295,10 +298,10 @@ func FindRootFunctions(prog *loader.Program, ginfo *types.Info, interfaces map[s
 	return rootFunctions
 }
 
+// Searches for fun decls.
 func FindFuncDecls(prog *loader.Program, ginfo *types.Info, interfaces map[string]types.Object, allowedPathPattern string) FuncsInfo {
 	funcsInfo := makeFuncsInfo()
 	for _, pkg := range prog.AllPackages {
-
 		//fmt.Printf("Package path %q\n", pkg.Pkg.Path())
 		for _, file := range pkg.Files {
 			if allowedPathPattern != "" && !strings.Contains(prog.Fset.Position(file.Name.Pos()).String(), allowedPathPattern) {
@@ -311,6 +314,7 @@ func FindFuncDecls(prog *loader.Program, ginfo *types.Info, interfaces map[strin
 	return funcsInfo
 }
 
+// Builds call graph.
 func BuildCallGraph(prog *loader.Program, ginfo *types.Info,
 	funcsInfo FuncsInfo, allowedPathPattern string) map[FuncDescriptor][]FuncDescriptor {
 	backwardCallGraph := make(map[FuncDescriptor][]FuncDescriptor)
