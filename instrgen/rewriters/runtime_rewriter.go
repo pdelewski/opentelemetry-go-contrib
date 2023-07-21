@@ -23,8 +23,8 @@ import (
 )
 
 type RuntimeRewriter struct {
-	ProjectPath    string
-	PackagePattern string
+	ProjectPath string
+	FilePattern string
 }
 
 func (RuntimeRewriter) Id() string {

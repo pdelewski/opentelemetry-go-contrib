@@ -37,7 +37,7 @@ import (
 )
 
 func usage() error {
-	fmt.Println("\nusage driver --command [path to go project] [package pattern] replace")
+	fmt.Println("\nusage driver --command [file pattern] replace")
 	fmt.Println("\tcommand:")
 	fmt.Println("\t\tinject                                 (injects open telemetry calls into project code)")
 	fmt.Println("\t\tinject-dump-ir                         (injects open telemetry calls into project code and intermediate passes)")
@@ -48,10 +48,10 @@ func usage() error {
 }
 
 type InstrgenCmd struct {
-	ProjectPath    string
-	PackagePattern string
-	Cmd            string
-	Replace        string
+	ProjectPath string
+	FilePattern string
+	Cmd         string
+	Replace     string
 }
 
 // Load whole go program.
@@ -128,10 +128,6 @@ func isDirectory(path string) (bool, error) {
 	return fileInfo.IsDir(), err
 }
 
-// Parsing algorithm works as follows. It goes through all function
-// decls and infer function bodies to find call to AutotelEntryPoint
-// A parent function of this call will become root of instrumentation
-// Each function call from this place will be instrumented automatically.
 func executeCommand(command string, projectPath string, packagePattern string, replaceSource string) error {
 	isDir, err := isDirectory(projectPath)
 	if !isDir {
@@ -216,6 +212,7 @@ func executePass(args []string) {
 	}
 }
 
+// GetCommandName extracts command name from args.
 func GetCommandName(args []string) string {
 	if len(args) == 0 {
 		return ""
@@ -353,10 +350,10 @@ func executeCommandProxy(cmdName string) {
 		return
 	}
 	replace := "no"
-	if len(os.Args) > 4 {
-		replace = os.Args[4]
+	if len(os.Args) > 3 {
+		replace = os.Args[3]
 	}
-	err = executeCommand(os.Args[1], os.Args[2], os.Args[3], replace)
+	err = executeCommand(os.Args[1], ".", os.Args[2], replace)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -406,12 +403,12 @@ func main() {
 	switch instrgenCfg.Cmd {
 	case "inject":
 		rewriterS = append(rewriterS, rewriters.RuntimeRewriter{ProjectPath: instrgenCfg.ProjectPath,
-			PackagePattern: instrgenCfg.PackagePattern})
+			FilePattern: instrgenCfg.FilePattern})
 		rewriterS = append(rewriterS, rewriters.BasicRewriter{ProjectPath: instrgenCfg.ProjectPath,
-			PackagePattern: instrgenCfg.PackagePattern, Replace: instrgenCfg.Replace})
+			FilePattern: instrgenCfg.FilePattern, Replace: instrgenCfg.Replace})
 	case "prune":
 		rewriterS = append(rewriterS, rewriters.OtelPruner{ProjectPath: instrgenCfg.ProjectPath,
-			PackagePattern: instrgenCfg.PackagePattern, Replace: true})
+			FilePattern: instrgenCfg.FilePattern, Replace: true})
 	}
 	toolExecMain(args, rewriterS)
 }

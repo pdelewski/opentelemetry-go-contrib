@@ -81,9 +81,9 @@ func inspectFuncContent(fType *ast.FuncType, fBody *ast.BlockStmt) {
 }
 
 type OtelPruner struct {
-	ProjectPath    string
-	PackagePattern string
-	Replace        bool
+	ProjectPath string
+	FilePattern string
+	Replace     bool
 }
 
 func (OtelPruner) Id() string {
@@ -91,7 +91,7 @@ func (OtelPruner) Id() string {
 }
 
 func (pruner OtelPruner) Inject(pkg string, filepath string) bool {
-	return strings.Contains(filepath, pruner.PackagePattern)
+	return strings.Contains(filepath, pruner.FilePattern)
 }
 
 func (pruner OtelPruner) ReplaceSource(pkg string, filePath string) bool {

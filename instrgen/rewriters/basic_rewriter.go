@@ -337,9 +337,9 @@ func makeSpanStmts(name string, paramName string) []ast.Stmt {
 }
 
 type BasicRewriter struct {
-	ProjectPath    string
-	PackagePattern string
-	Replace        string
+	ProjectPath string
+	FilePattern string
+	Replace     string
 }
 
 func (BasicRewriter) Id() string {
@@ -347,7 +347,7 @@ func (BasicRewriter) Id() string {
 }
 
 func (b BasicRewriter) Inject(pkg string, filepath string) bool {
-	return strings.Contains(filepath, b.PackagePattern)
+	return strings.Contains(filepath, b.FilePattern)
 }
 
 func (b BasicRewriter) ReplaceSource(pkg string, filePath string) bool {
