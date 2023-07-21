@@ -17,21 +17,26 @@ package main
 
 import (
 	"os"
+	__atel_runtime "runtime"
 	__atel_context "context"
+	_ "go.opentelemetry.io/otel"
 	__atel_otel "go.opentelemetry.io/otel"
+	_ "context"
 )
 
-func Close(__atel_tracing_ctx __atel_context.Context,) error {
+func Close() error {
+	__atel_tracing_ctx := __atel_runtime.InstrgenGetTls().(__atel_context.Context)
 	__atel_child_tracing_ctx, __atel_span := __atel_otel.Tracer("Close").Start(__atel_tracing_ctx, "Close")
-	_ = __atel_child_tracing_ctx
+	__atel_runtime.InstrgenSetTls(__atel_child_tracing_ctx)
 	defer __atel_span.End()
 
 	return nil
 }
 
-func pack(__atel_tracing_ctx __atel_context.Context,) {
+func pack() {
+	__atel_tracing_ctx := __atel_runtime.InstrgenGetTls().(__atel_context.Context)
 	__atel_child_tracing_ctx, __atel_span := __atel_otel.Tracer("pack").Start(__atel_tracing_ctx, "pack")
-	_ = __atel_child_tracing_ctx
+	__atel_runtime.InstrgenSetTls(__atel_child_tracing_ctx)
 	defer __atel_span.End()
 
 	f, e := os.Create("temp")
