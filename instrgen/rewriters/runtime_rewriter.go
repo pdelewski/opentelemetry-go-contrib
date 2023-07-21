@@ -22,23 +22,28 @@ import (
 	"os"
 )
 
+// RuntimeRewriter.
 type RuntimeRewriter struct {
 	FilePattern string
 }
 
+// Id.
 func (RuntimeRewriter) Id() string {
 	return "runtime"
 }
 
+// Inject.
 func (RuntimeRewriter) Inject(pkg string, filepath string) bool {
 
 	return pkg == "runtime"
 }
 
+// ReplaceSource.
 func (RuntimeRewriter) ReplaceSource(pkg string, filePath string) bool {
 	return false
 }
 
+// Rewrite.
 func (RuntimeRewriter) Rewrite(pkg string, file *ast.File, fset *token.FileSet, trace *os.File) {
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch n := n.(type) {
@@ -123,6 +128,7 @@ func (RuntimeRewriter) Rewrite(pkg string, file *ast.File, fset *token.FileSet, 
 	})
 }
 
+// WriteExtraFiles.
 func (RuntimeRewriter) WriteExtraFiles(pkg string, destPath string) []string {
 	ctx_propagation := `package runtime
 
@@ -140,14 +146,15 @@ func InstrgenSetTls(tls interface{}) {
         getg().m.curg._tls_instrgen = tls
 }
 `
-	if lib.FileExists(destPath + "/" + "instrgen_tls.go") {
+	destination := destPath + "/" + "instrgen_tls.go"
+	if lib.FileExists(destination) {
 		return nil
 	}
-	f, err := os.Create(destPath + "/" + "instrgen_tls.go")
+	tlsFile, err := os.Create(destination)
 	if err != nil {
 		log.Fatal(err)
 		return nil
 	}
-	f.WriteString(ctx_propagation)
-	return []string{destPath + "/" + "instrgen_tls.go"}
+	tlsFile.WriteString(ctx_propagation)
+	return []string{destination}
 }

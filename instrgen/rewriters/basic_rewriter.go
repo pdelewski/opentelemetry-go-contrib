@@ -344,18 +344,22 @@ type BasicRewriter struct {
 	Fun         string
 }
 
+// Id.
 func (BasicRewriter) Id() string {
 	return "Basic"
 }
 
+// Inject.
 func (b BasicRewriter) Inject(pkg string, filepath string) bool {
 	return strings.Contains(filepath, b.FilePattern)
 }
 
+// ReplaceSource.
 func (b BasicRewriter) ReplaceSource(pkg string, filePath string) bool {
 	return b.Replace == "yes"
 }
 
+// Rewrite.
 func (b BasicRewriter) Rewrite(pkg string, file *ast.File, fset *token.FileSet, trace *os.File) {
 	ast.Inspect(file, func(n ast.Node) bool {
 		if funDeclNode, ok := n.(*ast.FuncDecl); ok {
@@ -372,6 +376,7 @@ func (b BasicRewriter) Rewrite(pkg string, file *ast.File, fset *token.FileSet, 
 	})
 }
 
+// WriteExtraFiles.
 func (BasicRewriter) WriteExtraFiles(pkg string, destPath string) []string {
 	return nil
 }

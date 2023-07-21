@@ -80,23 +80,28 @@ func inspectFuncContent(fType *ast.FuncType, fBody *ast.BlockStmt) {
 	}
 }
 
+// OtelPruner.
 type OtelPruner struct {
 	FilePattern string
 	Replace     bool
 }
 
+// Id.
 func (OtelPruner) Id() string {
 	return "Pruner"
 }
 
+// Inject.
 func (pruner OtelPruner) Inject(pkg string, filepath string) bool {
 	return strings.Contains(filepath, pruner.FilePattern)
 }
 
+// ReplaceSource.
 func (pruner OtelPruner) ReplaceSource(pkg string, filePath string) bool {
 	return pruner.Replace
 }
 
+// Rewrite.
 func (OtelPruner) Rewrite(pkg string, file *ast.File, fset *token.FileSet, trace *os.File) {
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch x := n.(type) {
@@ -155,6 +160,7 @@ func (OtelPruner) Rewrite(pkg string, file *ast.File, fset *token.FileSet, trace
 
 }
 
+// WriteExtraFiles.
 func (OtelPruner) WriteExtraFiles(pkg string, destPath string) []string {
 	return nil
 }
