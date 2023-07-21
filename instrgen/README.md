@@ -12,7 +12,7 @@ If you are looking for more details about internal working, see [How it works](.
 From driver directory execute:
 
 ```
-    go build
+go build
 ```
 
 ## Prerequisites
@@ -21,7 +21,8 @@ From driver directory execute:
 
 ## How to use it
 
-Instrgen requires three parameters: command, directory (files from specified directory will be rewritten).
+Instrgen has to be invoked from main module directory and
+requires three parameters: command, directory (files from specified directory will be rewritten).
 
 ```
 ./driver --inject [file pattern] [replace input source] [entry point]
