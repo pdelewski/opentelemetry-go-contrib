@@ -336,10 +336,12 @@ func makeSpanStmts(name string, paramName string) []ast.Stmt {
 	return stmts
 }
 
+// BasicRewriter rewrites all functions according to FilePattern.
 type BasicRewriter struct {
-	ProjectPath string
 	FilePattern string
 	Replace     string
+	Pkg         string
+	Fun         string
 }
 
 func (BasicRewriter) Id() string {
@@ -357,7 +359,7 @@ func (b BasicRewriter) ReplaceSource(pkg string, filePath string) bool {
 func (b BasicRewriter) Rewrite(pkg string, file *ast.File, fset *token.FileSet, trace *os.File) {
 	ast.Inspect(file, func(n ast.Node) bool {
 		if funDeclNode, ok := n.(*ast.FuncDecl); ok {
-			if pkg == "main" && funDeclNode.Name.Name == "main" {
+			if pkg == b.Pkg && funDeclNode.Name.Name == b.Fun {
 				funDeclNode.Body.List = append(makeInitStmts(funDeclNode.Name.Name), funDeclNode.Body.List...)
 			} else {
 				funDeclNode.Body.List = append(makeSpanStmts(funDeclNode.Name.Name, "__atel_tracing_ctx"), funDeclNode.Body.List...)

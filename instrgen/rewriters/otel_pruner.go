@@ -81,7 +81,6 @@ func inspectFuncContent(fType *ast.FuncType, fBody *ast.BlockStmt) {
 }
 
 type OtelPruner struct {
-	ProjectPath string
 	FilePattern string
 	Replace     bool
 }

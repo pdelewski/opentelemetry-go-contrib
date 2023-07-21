@@ -23,7 +23,6 @@ import (
 )
 
 type RuntimeRewriter struct {
-	ProjectPath string
 	FilePattern string
 }
 

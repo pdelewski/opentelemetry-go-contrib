@@ -20,10 +20,20 @@ import (
 	"os"
 )
 
+// PackageRewriter interface does actual input package
+// rewriting according to specific criteria.
 type PackageRewriter interface {
+	// ID Dumps rewriter id.
 	Id() string
+	// Inject tells whether package should be rewritten.
 	Inject(pkg string, filepath string) bool
+	// ReplaceSource decides whether input sources should be replaced
+	// or all rewriting work should be done in temporary location.
 	ReplaceSource(pkg string, filePath string) bool
+	// Rewrite does actual package rewriting.
 	Rewrite(pkg string, file *ast.File, fset *token.FileSet, trace *os.File)
+	// WriteExtraFiles generate additional files that will be linked
+	// together to input package.
+	// Additional files have to be returned as array of file names.
 	WriteExtraFiles(pkg string, destPath string) []string
 }

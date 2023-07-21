@@ -45,12 +45,12 @@ func TestInstrumentation(t *testing.T) {
 		for index, file := range files {
 			filePaths[file] = index
 		}
-		pruner := rewriters.OtelPruner{ProjectPath: k,
+		pruner := rewriters.OtelPruner{
 			FilePattern: k, Replace: true}
 		analyzePackage(pruner, "main", filePaths, nil, "", args)
 
-		rewriter := rewriters.BasicRewriter{ProjectPath: k,
-			FilePattern: k, Replace: "yes"}
+		rewriter := rewriters.BasicRewriter{
+			FilePattern: k, Replace: "yes", Pkg: "main", Fun: "main"}
 		analyzePackage(rewriter, "main", filePaths, nil, "", args)
 
 	}

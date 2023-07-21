@@ -37,7 +37,7 @@ import (
 )
 
 func usage() error {
-	fmt.Println("\nusage driver --command [file pattern] replace")
+	fmt.Println("\nusage driver --command [file pattern] replace entrypoint")
 	fmt.Println("\tcommand:")
 	fmt.Println("\t\tinject                                 (injects open telemetry calls into project code)")
 	fmt.Println("\t\tinject-dump-ir                         (injects open telemetry calls into project code and intermediate passes)")
@@ -47,11 +47,17 @@ func usage() error {
 	return nil
 }
 
+type EntryPoint struct {
+	Pkg     string
+	FunName string
+}
+
 type InstrgenCmd struct {
 	ProjectPath string
 	FilePattern string
 	Cmd         string
 	Replace     string
+	EntryPoint  EntryPoint
 }
 
 // Load whole go program.
@@ -128,7 +134,7 @@ func isDirectory(path string) (bool, error) {
 	return fileInfo.IsDir(), err
 }
 
-func executeCommand(command string, projectPath string, packagePattern string, replaceSource string) error {
+func executeCommand(command string, projectPath string, packagePattern string, replaceSource string, entryPoint string) error {
 	isDir, err := isDirectory(projectPath)
 	if !isDir {
 		_ = usage()
@@ -145,7 +151,9 @@ func executeCommand(command string, projectPath string, packagePattern string, r
 
 	switch command {
 	case "--inject":
-		data := InstrgenCmd{projectPath, packagePattern, "inject", replaceSource}
+		entry := strings.Split(entryPoint, ".")
+		data := InstrgenCmd{projectPath, packagePattern, "inject", replaceSource,
+			EntryPoint{entry[0], entry[1]}}
 		file, _ := json.MarshalIndent(data, "", " ")
 		err = os.WriteFile("instrgen_cmd.json", file, 0644)
 		if err != nil {
@@ -178,7 +186,9 @@ func executeCommand(command string, projectPath string, packagePattern string, r
 		dumpRootFunctions(rootFunctions)
 		return nil
 	case "--prune":
-		data := InstrgenCmd{projectPath, packagePattern, "prune", "yes"}
+		entry := strings.Split(entryPoint, ".")
+		data := InstrgenCmd{projectPath, packagePattern, "prune", "yes",
+			EntryPoint{entry[0], entry[1]}}
 		file, _ := json.MarshalIndent(data, "", " ")
 		_ = os.WriteFile("instrgen_cmd.json", file, 0644)
 		cmd := exec.Command("go", "build", "-work", "-a", "-toolexec", "driver")
@@ -353,7 +363,7 @@ func executeCommandProxy(cmdName string) {
 	if len(os.Args) > 3 {
 		replace = os.Args[3]
 	}
-	err = executeCommand(os.Args[1], ".", os.Args[2], replace)
+	err = executeCommand(os.Args[1], ".", os.Args[2], replace, os.Args[4])
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -402,12 +412,13 @@ func main() {
 	var rewriterS []alib.PackageRewriter
 	switch instrgenCfg.Cmd {
 	case "inject":
-		rewriterS = append(rewriterS, rewriters.RuntimeRewriter{ProjectPath: instrgenCfg.ProjectPath,
+		rewriterS = append(rewriterS, rewriters.RuntimeRewriter{
 			FilePattern: instrgenCfg.FilePattern})
-		rewriterS = append(rewriterS, rewriters.BasicRewriter{ProjectPath: instrgenCfg.ProjectPath,
-			FilePattern: instrgenCfg.FilePattern, Replace: instrgenCfg.Replace})
+		rewriterS = append(rewriterS, rewriters.BasicRewriter{
+			FilePattern: instrgenCfg.FilePattern, Replace: instrgenCfg.Replace,
+			Pkg: instrgenCfg.EntryPoint.Pkg, Fun: instrgenCfg.EntryPoint.FunName})
 	case "prune":
-		rewriterS = append(rewriterS, rewriters.OtelPruner{ProjectPath: instrgenCfg.ProjectPath,
+		rewriterS = append(rewriterS, rewriters.OtelPruner{
 			FilePattern: instrgenCfg.FilePattern, Replace: true})
 	}
 	toolExecMain(args, rewriterS)
