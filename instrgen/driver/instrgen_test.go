@@ -25,8 +25,8 @@ import (
 )
 
 var testcases = map[string]string{
-	"./testdata/basic":     "./testdata/expected/basic",
-	"./testdata/interface": "./testdata/expected/interface",
+	"testdata/basic":     "./testdata/expected/basic",
+	"testdata/interface": "./testdata/expected/interface",
 }
 
 var failures []string
@@ -44,11 +44,11 @@ func TestInstrumentation(t *testing.T) {
 			filePaths[file] = index
 		}
 		pruner := rewriters.OtelPruner{ProjectPath: k,
-			PackagePattern: k[2:], Replace: true}
+			PackagePattern: k, Replace: true}
 		analyzePackage(pruner, "main", filePaths, nil, "", args)
 
 		rewriter := rewriters.BasicRewriter{ProjectPath: k,
-			PackagePattern: k[2:], Replace: "yes"}
+			PackagePattern: k, Replace: "yes"}
 		analyzePackage(rewriter, "main", filePaths, nil, "", args)
 
 	}
