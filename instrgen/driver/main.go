@@ -44,7 +44,7 @@ const (
 )
 
 func usage() {
-	fmt.Printf(InfoColor, "\nusage driver --command [file pattern] replace entrypoint")
+	fmt.Printf(InfoColor, "\nusage driver --command [file pattern] replace entrypoint output-executable-name")
 	fmt.Println()
 	fmt.Printf(InfoColor, "\tcommand:")
 	fmt.Println()
@@ -133,7 +133,7 @@ func LoadProgram(projectPath string, ginfo *types.Info) (*loader.Program, error)
 	return conf.Load()
 }
 
-func executeCommand(command string, projectPath string, packagePattern string, replaceSource string, entryPoint string, executor CommandExecutor) error {
+func executeCommand(command string, projectPath string, packagePattern string, replaceSource string, entryPoint string, outputName string,  executor CommandExecutor) error {
 	isDir, err := isDirectory(projectPath)
 	if !isDir {
 		return errors.New("[path to go project] argument must be directory")
@@ -155,7 +155,7 @@ func executeCommand(command string, projectPath string, packagePattern string, r
 		if err != nil {
 			return err
 		}
-		executor.Execute("go", []string{"build", "-work", "-a", "-toolexec", "driver"})
+		executor.Execute("go", []string{"build", "-o", "./"+outputName, "-work", "-a", "-toolexec", "driver"})
 		//fmt.Println("invoke : " + executor.cmd.String())
 		if err := executor.Run(); err != nil {
 			return err
@@ -167,7 +167,7 @@ func executeCommand(command string, projectPath string, packagePattern string, r
 }
 
 func checkArgs(args []string) error {
-	if len(args) != 4 {
+	if len(args) != 5 {
 		return errors.New("wrong arguments")
 	}
 	return nil
@@ -419,7 +419,7 @@ func driverMain(args []string, executor CommandExecutor) error {
 			if len(args) > 2 {
 				replace = args[2]
 			}
-			err = executeCommand(args[0], ".", args[1], replace, args[3], executor)
+			err = executeCommand(args[0], ".", args[1], replace, args[3], args[4], executor)
 			if err != nil {
 				return err
 			}
